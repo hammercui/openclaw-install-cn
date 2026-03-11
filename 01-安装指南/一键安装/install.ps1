@@ -65,9 +65,12 @@ function Test-Network {
         [int]$TimeoutMs = 5000
     )
     try {
-        $client = New-Object System.Net.WebClient
-        $client.Headers.Add("User-Agent", "OpenClaw-Installer/1.0")
-        $client.DownloadString($Url) | Out-Null
+        $request = [System.Net.HttpWebRequest]::Create($Url)
+        $request.Timeout = $TimeoutMs
+        $request.Method = "HEAD"
+        $request.UserAgent = "OpenClaw-Installer/1.0"
+        $response = $request.GetResponse()
+        $response.Close()
         return $true
     } catch {
         return $false
@@ -154,6 +157,18 @@ function Select-BestMirror {
     return $Mirrors[0]
 }
 
+# 加载本地配置（如果存在）
+$ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
+$LocalConfig = Join-Path $ScriptDir "install-config.local.ps1"
+$DefaultConfig = Join-Path $ScriptDir "install-config.example.ps1"
+
+if (Test-Path $LocalConfig) {
+    . $LocalConfig
+    Write-Info "已加载本地配置: install-config.local.ps1"
+} elseif (Test-Path $DefaultConfig) {
+    . $DefaultConfig
+}
+
 Write-Header
 
 # 步骤 1: 检查并安装 nvm-windows
@@ -219,7 +234,7 @@ try {
         }
     }
 
-    & nvm alias default 22
+    & nvm use 22
 } catch {
     Write-Error "Node.js 22 安装失败: $_"
     Write-Info "尝试手动安装: nvm install 22"
@@ -322,7 +337,7 @@ Write-Output "  查看 ..\..\README.md 了解更多信息"
 Write-Output ""
 
 Write-Info "故障排除:"
-Write-Output "  如果遇到问题，请查看: scripts\install\TROUBLESHOOTING.md"
+Write-Output "  如果遇到问题，请查看: TROUBLESHOOTING.md"
 Write-Output ""
 
 Write-Success "开始使用 OpenClaw 吧！ 🚀`n"

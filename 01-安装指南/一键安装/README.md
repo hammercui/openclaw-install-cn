@@ -241,7 +241,7 @@ openclaw gateway status
 openclaw help
 ```
 
-详细文档：[\.\.\/\.\.\/\.\.\/../README.md](\.\.\/\.\.\/\.\.\/../README.md)
+详细文档：[README.md](../../README.md)
 
 ## 🆘 获取帮助
 

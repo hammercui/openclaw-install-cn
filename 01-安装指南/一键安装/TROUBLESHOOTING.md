@@ -445,7 +445,7 @@ cp /tmp/openclaw-install.log .
 **Windows**:
 ```powershell
 # 系统信息
-systeminfo | selectstring /C:"OS" /C:"Version"
+systeminfo | Select-String "OS","Version"
 
 # PowerShell 版本
 $PSVersionTable
@@ -477,7 +477,7 @@ nvm --version
 
 ### 获取帮助
 
-- 📖 查看文档: [\.\.\/\.\.\/\.\.\/README.md](\.\.\/\.\.\/\.\.\/README.md)
+- 📖 查看文档: [README.md](../../README.md)
 - 🐛 报告问题: https://github.com/openclaw/openclaw/issues
 - 💬 加入社区: https://discord.com/invite/clawd
 - 📧 联系支持: support@openclaw.ai

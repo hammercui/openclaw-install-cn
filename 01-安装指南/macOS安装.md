@@ -16,7 +16,6 @@ CPU, 最低=Intel i5 / Apple M1, 推荐=Intel i7 / Apple M2/M3
 
 ### 检查系统
 ```bash
-
 # 检查macOS版本
 sw_vers
 
@@ -32,9 +31,13 @@ npm --version
 
 ## 安装步骤
 
-# 安装Homebrew
+### 步骤1:安装Homebrew(如果未安装)
+
+```bash
+# 官方源安装Homebrew
 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
 
+# 或使用国内镜像安装(推荐)
 /bin/zsh -c "$(curl -fsSL https://gitee.com/cunkai/HomebrewCN/raw/master/Homebrew.sh)"
 
 # 添加Homebrew到PATH(Apple Silicon)
@@ -42,23 +45,40 @@ echo 'eval "$(/opt/homebrew/bin/brew shellenv)"' >> ~/.zprofile
 eval "$(/opt/homebrew/bin/brew shellenv)"
 
 # 验证
+brew --version
+```
 
+### 步骤2:安装Node.js 22
+
+```bash
 # 使用Homebrew安装
-brew install node@18
+brew install node@22
 
-node --version # 应显示 v18.x.x
+node --version # 应显示 v22.x.x
+```
 
+### 步骤3:安装OpenClaw
+
+```bash
 # 全局安装
-sudo npm install -g openclaw
+npm install -g openclaw
 
 openclaw --version
 openclaw help
+```
 
+### 步骤4:初始化配置
+
+```bash
 # 运行初始化向导
 openclaw init
 
 # - 默认模型: zai/glm-4.7
+```
 
+### 步骤5:启动Gateway
+
+```bash
 # 启动
 openclaw gateway start
 
@@ -67,14 +87,17 @@ openclaw gateway status
 
 # 查看日志
 tail -f ~/.openclaw/logs/gateway.log
+```
 
-## ️ macOS特定配置
+## ⚙️ macOS特定配置
 
 ### 配置开机自启动(推荐)
 **使用launchd**:
 
+```bash
 # 创建plist文件
 vim ~/Library/LaunchAgents/com.openclaw.gateway.plist
+```
 
 内容:
 ```xml
@@ -82,26 +105,28 @@ vim ~/Library/LaunchAgents/com.openclaw.gateway.plist
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
- <key>Label</key>
- <string>com.openclaw.gateway</string>
- <key>ProgramArguments</key>
- <array>
- <string>/usr/local/bin/openclaw</string>
- <string>gateway</string>
- <string>start</string>
- </array>
- <key>RunAtLoad</key>
- <true/>
- <key>KeepAlive</key>
- <key>StandardOutPath</key>
- <string>/tmp/openclaw.out.log</string>
- <key>StandardErrorPath</key>
- <string>/tmp/openclaw.err.log</string>
+  <key>Label</key>
+  <string>com.openclaw.gateway</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/usr/local/bin/openclaw</string>
+    <string>gateway</string>
+    <string>start</string>
+  </array>
+  <key>RunAtLoad</key>
+  <true/>
+  <key>KeepAlive</key>
+  <true/>
+  <key>StandardOutPath</key>
+  <string>/tmp/openclaw.out.log</string>
+  <key>StandardErrorPath</key>
+  <string>/tmp/openclaw.err.log</string>
 </dict>
 </plist>
+```
 
 加载:
-
+```bash
 # 加载服务
 launchctl load ~/Library/LaunchAgents/com.openclaw.gateway.plist
 
@@ -110,25 +135,26 @@ launchctl start com.openclaw.gateway
 
 # 查看状态
 launchctl list | grep openclaw
+```
 
 ### 配置防火墙
 如果启用了防火墙:
-
-# 允许 "node" 或 "openclaw" 接受传入连接
+> 在"系统设置 > 网络 > 防火墙 > 选项"中，允许 "node" 或 "openclaw" 接受传入连接。
 
 ## Apple Silicon特定说明
 
 ### M1/M2/M3芯片
 **Homebrew路径**:
-
+```bash
 # Apple Silicon
 /opt/homebrew/
 
 # Intel
 /usr/local/
+```
 
-**npm全局路径**:
-
+**npm全局路径**(避免权限问题):
+```bash
 # 创建目录
 mkdir ~/.npm-global
 
@@ -141,29 +167,39 @@ source ~/.zshrc
 
 # 重新安装
 npm install -g openclaw
+```
 
 ### Rosetta 2(如果需要)
 某些Intel依赖可能需要Rosetta:
-
+```bash
 # 安装Rosetta 2
 softwareupdate --install-rosetta
+```
 
 ## 故障排查
 
 ### 问题1:权限错误
+
+```
 EACCES: permission denied
+```
 
 **解决**:
-
+```bash
 # 修复npm权限
 sudo chown -R $(whoami) ~/.npm
-sudo chown -R $(who.nodeName) /usr/local/lib/node_modules
+sudo chown -R $(whoami) /usr/local/lib/node_modules
 
-# 或使用sudo
+# 或配置npm全局目录(见Apple Silicon章节)
+```
 
 ### 问题2:命令未找到
-openclaw: command not found
 
+```
+openclaw: command not found
+```
+
+```bash
 # 查找npm全局路径
 npm config get prefix
 
@@ -172,7 +208,11 @@ echo 'export PATH=/usr/local/bin:$PATH' >> ~/.zshrc
 # 或(bash)
 echo 'export PATH=/usr/local/bin:$PATH' >> ~/.bash_profile
 source ~/.bash_profile
+```
 
+### 通用调试
+
+```bash
 # 查看详细日志
 openclaw gateway logs
 
@@ -181,9 +221,11 @@ lsof -i :18789
 
 # 重置配置
 mv ~/.openclaw/openclaw.json ~/.openclaw/openclaw.json.bak
+```
 
 ## 开发者友好功能
 
+```bash
 # 安装Xcode命令行工具
 xcode-select --install
 
@@ -192,34 +234,42 @@ brew install --cask visual-studio-code
 
 # 安装OpenClaw扩展
 code --install-extension openclaw.openclaw
+```
 
 ## 快速接入IM
 
-# 3. 配置
+```bash
+# 配置
 vim ~/.openclaw/openclaw.json
+```
 
 添加:
 ```json
 {
- "channels": {
- "telegram": {
- "enabled": true,
- "token": "YOUR_BOT_TOKEN"
- }
+  "channels": {
+    "telegram": {
+      "enabled": true,
+      "token": "YOUR_BOT_TOKEN"
+    }
+  }
+}
+```
 
-# 4. 重启
+```bash
+# 重启
 openclaw gateway restart
+```
 
-详见:[Telegram接入指南](./Telegram接入指南.md)
+详见:[Telegram接入指南](../03-IM平台集成/Telegram接入.md)
 
 ## 下一步
 1. 安装完成
-2. [接入IM](./00-总索引.md#按im平台分类)
-3. [常用命令](./OpenClaw快速参考卡.md)
+2. [接入IM](../03-IM平台集成/README.md)
+3. [常用命令](../05-参考文档/快速参考卡.md)
 
 ## 获取帮助
 - [完整文档](https://docs.openclaw.ai)
 - [社区Discord](https://discord.gg/clawd)
 
-**更新时间**: 2026-03-10
+**更新时间**: 2026-03-11
 **维护者**: Zandar

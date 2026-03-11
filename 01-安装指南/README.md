@@ -44,9 +44,9 @@ chmod +x install.sh && ./install.sh
 
 ### Windows
 
-推荐使用 WSL2 方式安装。
+推荐使用一键安装脚本或 WSL2 方式安装。
 
-📖 [Windows 安装指南](./Linux安装.md#windows)
+📖 [Windows 一键安装](./一键安装/README.md)
 
 ---
 
@@ -66,8 +66,8 @@ chmod +x install.sh && ./install.sh
 - **npm**: 10.x 或更高
 - **操作系统**:
   - Linux: Ubuntu 20.04+, CentOS 8+, Arch Linux
-  - macOS: 10.15+
-  - Windows: 10/11 with WSL2
+  - macOS: 12.0+ (Monterey)
+  - Windows: 10/11 (推荐一键安装脚本或 WSL2)
 
 ### 推荐配置
 - **内存**: 2GB+
@@ -94,9 +94,9 @@ chmod +x install.sh && ./install.sh
 
 安装完成后，配置 IM 平台：
 
-- [Telegram 接入](../02-平台集成/Telegram接入.md) - 5分钟
-- [飞书接入](../02-平台集成/飞书接入.md) - 30分钟
-- [QQ 接入](../02-平台集成/QQ接入.md) - 45分钟
+- [Telegram 接入](../03-IM平台集成/Telegram接入.md) - 5分钟
+- [飞书接入](../03-IM平台集成/飞书接入.md) - 30分钟
+- [QQ 接入](../03-IM平台集成/QQ接入.md) - 45分钟
 
 ---
 

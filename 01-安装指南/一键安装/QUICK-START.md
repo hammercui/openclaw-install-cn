@@ -92,7 +92,7 @@ openclaw gateway status
 2. 配置 OpenClaw 连接
 3. 开始在 Telegram 中使用 AI
 
-详细指南: [\.\.\/\.\.\/\.\.\/02-平台集成/Telegram接入指南.md](\.\.\/\.\.\/\.\.\/02-平台集成/Telegram接入指南.md)
+详细指南: [Telegram接入指南](../../03-IM平台集成/Telegram接入.md)
 
 ### 选项 2: 命令行交互
 
@@ -216,8 +216,8 @@ openclaw --version
 ## 📚 下一步学习
 
 - 📖 [完整安装指南](./README.md)
-- 🔌 [平台集成指南](\.\.\/\.\.\/\.\.\/02-平台集成/Telegram接入指南.md)
-- ⚙️ [高级配置](\.\.\/\.\.\/\.\.\/03-高级配置/OpenClaw-Embedding配置总结.md)
+- 🔌 [平台集成指南](../../03-IM平台集成/Telegram接入.md)
+- ⚙️ [高级配置](../../04-高级配置/README.md)
 - 🔧 [故障排除](./TROUBLESHOOTING.md)
 
 ## 🆘 遇到问题？
@@ -266,7 +266,7 @@ A: 完整卸载指南: [TROUBLESHOOTING.md](./TROUBLESHOOTING.md#卸载与重装
 3. 配置定时任务和提醒
 4. 集成更多平台（QQ、飞书等）
 
-详细文档: [\.\.\/\.\.\/\.\.\/README.md](\.\.\/\.\.\/\.\.\/README.md)
+详细文档: [README.md](../../README.md)
 
 ---
 

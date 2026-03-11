@@ -93,7 +93,7 @@ download_with_retry() {
                 if [ -z "$proxy" ]; then
                     proxied_url="$url"
                 else
-                    proxied_url="${url/github\.com/$proxy/https://github.com}"
+                    proxied_url="${url/https:\/\/github.com/${proxy}\/https:\/\/github.com}"
                 fi
                 
                 print_info "尝试下载 ($attempt/$max_retries): $proxied_url"
@@ -170,6 +170,15 @@ select_best_mirror() {
     echo "${mirrors[0]}"
     return 0
 }
+
+# 加载本地配置（如果存在）
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+if [ -f "$SCRIPT_DIR/install-config.local.sh" ]; then
+    source "$SCRIPT_DIR/install-config.local.sh"
+    echo "[信息] 已加载本地配置: install-config.local.sh"
+elif [ -f "$SCRIPT_DIR/install-config.sh" ]; then
+    source "$SCRIPT_DIR/install-config.sh"
+fi
 
 print_header
 
@@ -325,7 +334,7 @@ echo "  查看 ../../README.md 了解更多信息"
 echo ""
 
 print_info "故障排除:"
-echo "  如果遇到问题，请查看: scripts/install/TROUBLESHOOTING.md"
+echo "  如果遇到问题，请查看: TROUBLESHOOTING.md"
 echo ""
 
 print_success "开始使用 OpenClaw 吧！ 🚀"
