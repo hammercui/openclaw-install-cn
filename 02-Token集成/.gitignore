@@ -1,0 +1,18 @@
+# 忽略包含真实 API Keys 的配置文件
+*.json
+!*.example.json
+
+# 忽略环境变量文件
+.env
+.env.local
+.env.production
+
+# 忽略日志
+*.log
+logs/
+
+# 保留示例文件
+*.example.json
+*.example.md
+.env.example
+README.md
