@@ -1,0 +1,35 @@
+{
+  "provider": "zhipuai",
+  "displayName": "智谱 AI (GLM)",
+  "apiKey": "${ZHIPUAI_API_KEY}",
+  "baseURL": "https://open.bigmodel.cn/api/paas/v4",
+  "models": {
+    "default": "glm-4.7",
+    "available": [
+      "glm-4.7",
+      "glm-4.5-air",
+      "glm-4",
+      "glm-3-turbo"
+    ],
+    "fallback": ["glm-4.5-air"]
+  },
+  "rateLimits": {
+    "requestsPerMinute": 100,
+    "tokensPerMinute": 60000,
+    "maxTokens": 128000
+  },
+  "pricing": {
+    "input": 0.5,
+    "output": 0.5,
+    "currency": "CNY",
+    "unit": "perMillion"
+  },
+  "features": {
+    "streaming": true,
+    "functionCalling": true,
+    "vision": false,
+    "systemMessages": true
+  },
+  "region": "cn",
+  "documentation": "https://open.bigmodel.cn/dev/api"
+}

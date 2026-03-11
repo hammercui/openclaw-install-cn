@@ -1,0 +1,35 @@
+{
+  "provider": "google",
+  "displayName": "Google AI (Gemini)",
+  "apiKey": "${GOOGLE_API_KEY}",
+  "baseURL": "https://generativelanguage.googleapis.com/v1beta",
+  "models": {
+    "default": "gemini-2.5-pro",
+    "available": [
+      "gemini-2.5-pro",
+      "gemini-2.5-flash",
+      "gemini-2.0-flash-exp",
+      "gemini-1.5-pro",
+      "gemini-1.5-flash"
+    ],
+    "fallback": ["gemini-1.5-flash"]
+  },
+  "rateLimits": {
+    "requestsPerMinute": 15,
+    "tokensPerMinute": 1000000,
+    "maxTokens": 1000000
+  },
+  "pricing": {
+    "input": 1.25,
+    "output": 5.0,
+    "currency": "USD",
+    "unit": "perMillion"
+  },
+  "features": {
+    "streaming": true,
+    "functionCalling": true,
+    "vision": true,
+    "systemMessages": false,
+    "codeExecution": true
+  }
+}
