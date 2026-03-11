@@ -1,14 +1,16 @@
 #!/usr/bin/env bash
 # ============================================================
-#  OpenClaw One-Click Installer for macOS
-#  Version: 2.0.0
-#  Optimized for China mainland network
+#  OpenClaw 一键安装脚本（macOS）
+#  版本: 2.1.0
+#  内地网络优化版
 # ============================================================
 
 set -euo pipefail
 
-VERSION="2.0.0"
+VERSION="2.1.0"
 NODE_TARGET="22"
+NODE_MIN_MAJOR="22"
+NODE_MIN_MINOR="12"
 LOG="/tmp/openclaw-install-mac.log"
 NVM_DIR="$HOME/.nvm"
 NVM_GITEE="https://gitee.com/mirrors/nvm.git"
@@ -39,16 +41,16 @@ warn() { echo -e "${YELLOW}[ WARN ]${NC} $*"; log "[ WARN ] $*"; }
 err()  { echo -e "${RED}[ERROR ]${NC} $*" >&2; log "[ERROR ] $*"; }
 step() {
     echo
-    echo -e "${CYAN}---- Step $1 of 7: $2 ----${NC}"
+    echo -e "${CYAN}---- 第 $1 步/共 7 步: $2 ----${NC}"
     log
-    log "---- Step $1 of 7: $2 ----"
+    log "---- 第 $1 步/共 7 步: $2 ----"
 }
 
 header() {
     echo
     echo "============================================================"
-    echo "  OpenClaw One-Click Installer for macOS  v${VERSION}"
-    echo "  Log: ${LOG}"
+    echo "  OpenClaw 一键安装脚本（macOS）  v${VERSION}"
+    echo "  日志文件: ${LOG}"
     echo "============================================================"
     echo
 }
@@ -66,10 +68,23 @@ test_mirror() {
 }
 
 # ============================================================
+#  Check if current node version meets minimum requirement
+# ============================================================
+check_node_ver() {
+    local major minor
+    major=$(node -v 2>/dev/null | sed 's/v//' | cut -d. -f1)
+    minor=$(node -v 2>/dev/null | sed 's/v//' | cut -d. -f2)
+    [[ -z "$major" ]] && return 1
+    [[ $major -gt $NODE_MIN_MAJOR ]] && return 0
+    [[ $major -eq $NODE_MIN_MAJOR && $minor -ge $NODE_MIN_MINOR ]] && return 0
+    return 1
+}
+
+# ============================================================
 #  Step 1 - Test mirrors and select fastest
 # ============================================================
 step1_test_mirrors() {
-    step 1 "Testing mirror speed"
+    step 1 "测试镜像速度"
 
     local npm_mirrors=(
         "https://registry.npmmirror.com|Taobao"
@@ -82,7 +97,7 @@ step1_test_mirrors() {
         "https://mirrors.huaweicloud.com/nodejs/|Huawei"
     )
 
-    info "Testing npm mirrors..."
+    info "正在测试 npm 镜像速度..."
     for entry in "${npm_mirrors[@]}"; do
         local url="${entry%%|*}" name="${entry##*|}"
         local ms
@@ -93,9 +108,9 @@ step1_test_mirrors() {
             BEST_NPM_MS=$ms; BEST_NPM_MIRROR="$url"; BEST_NPM_NAME="$name"
         fi
     done
-    ok "npm mirror   : ${BEST_NPM_NAME} (${BEST_NPM_MIRROR}) - ${BEST_NPM_MS}ms"
+    ok "npm 镜像: ${BEST_NPM_NAME} (${BEST_NPM_MIRROR}) - ${BEST_NPM_MS}ms"
 
-    info "Testing Node.js download mirrors..."
+    info "正在测试 Node.js 下载镜像速度..."
     for entry in "${node_mirrors[@]}"; do
         local url="${entry%%|*}" name="${entry##*|}"
         local ms
@@ -106,7 +121,7 @@ step1_test_mirrors() {
             BEST_NODE_MS=$ms; BEST_NODE_MIRROR="$url"; BEST_NODE_NAME="$name"
         fi
     done
-    ok "Node mirror  : ${BEST_NODE_NAME} (${BEST_NODE_MIRROR}) - ${BEST_NODE_MS}ms"
+    ok "Node 镜像: ${BEST_NODE_NAME} (${BEST_NODE_MIRROR}) - ${BEST_NODE_MS}ms"
 }
 
 # ============================================================
@@ -120,98 +135,119 @@ detect_shell_rc() {
     else
         SHELL_RC="$HOME/.bashrc"
     fi
-    info "Shell config : ${SHELL_RC}"
+    info "当前 Shell 配置文件: ${SHELL_RC}"
 }
 
 # ============================================================
-#  Step 2 - Check / Install Node.js via nvm
+#  第 2 步 - 检查 / 安装 Node.js
 # ============================================================
 step2_check_nodejs() {
-    step 2 "Checking Node.js"
+    step 2 "检查 Node.js（要求 v${NODE_MIN_MAJOR}.${NODE_MIN_MINOR}+）"
 
     detect_shell_rc
 
-    # Load nvm if present
+    # 加载 nvm
     export NVM_DIR
     [[ -s "$NVM_DIR/nvm.sh" ]] && source "$NVM_DIR/nvm.sh" || true
 
     if command -v node &>/dev/null; then
         NODE_VER=$(node -v)
-        ok "Node.js already installed: ${NODE_VER}"
-        return 0
+        ok "检测到 Node.js: ${NODE_VER}"
+        if check_node_ver; then
+            ok "版本模算通过（要求 v${NODE_MIN_MAJOR}.${NODE_MIN_MINOR}+）"
+            return 0
+        else
+            warn "${NODE_VER} 版本过低，将进行升级..."
+        fi
+    else
+        info "未安装 Node.js，开始安装..."
     fi
 
-    info "Node.js not found, installing via nvm..."
+    # 确保 git 可用
+    if ! command -v git &>/dev/null; then
+        err "git 未找到，请先安装 Xcode 命令行工具:"
+        err "  xcode-select --install"
+        exit 1
+    fi
 
-    # Install nvm if missing
-    if ! command -v nvm &>/dev/null; then
-        info "Installing nvm from Gitee mirror..."
-        if ! command -v git &>/dev/null; then
-            err "git not found. Install Xcode Command Line Tools first:"
-            err "  xcode-select --install"
-            exit 1
-        fi
+    # 安装 nvm
+    if [[ ! -s "$NVM_DIR/nvm.sh" ]]; then
+        info "正在从 Gitee 镜像安装 nvm..."
         git clone --depth=1 "$NVM_GITEE" "$NVM_DIR" >> "$LOG" 2>&1 || {
-            err "nvm clone failed - see log: ${LOG}"
-            err "Manual: git clone ${NVM_GITEE} ~/.nvm"
+            err "nvm 克隆失败，详情请查看日志: ${LOG}"
             exit 1
         }
-        source "$NVM_DIR/nvm.sh"
-        ok "nvm installed from Gitee"
+        ok "nvm 安装完成（来自 Gitee 镜像）"
+    fi
+    source "$NVM_DIR/nvm.sh"
+
+    info "正在安装 Node.js ${NODE_TARGET}（镜像: ${BEST_NODE_NAME}）..."
+    export NVM_NODEJS_ORG_MIRROR="$BEST_NODE_MIRROR"
+    nvm install "${NODE_TARGET}" >> "$LOG" 2>&1
+    nvm use "${NODE_TARGET}" >> "$LOG" 2>&1
+    nvm alias default "${NODE_TARGET}" >> "$LOG" 2>&1
+
+    # 版本仍不够时固定安装 22.12.0
+    if ! check_node_ver; then
+        warn "nvm 安装了 $(node -v)，版本仍不足，固定安装 22.12.0..."
+        nvm install 22.12.0 >> "$LOG" 2>&1
+        nvm use 22.12.0 >> "$LOG" 2>&1
     fi
 
-    # Install Node.js
-    info "Installing Node.js ${NODE_TARGET} (mirror: ${BEST_NODE_NAME})..."
-    export NVM_NODEJS_ORG_MIRROR="$BEST_NODE_MIRROR"
-    nvm install "$NODE_TARGET" >> "$LOG" 2>&1
-    nvm use "$NODE_TARGET" >> "$LOG" 2>&1
-    nvm alias default "$NODE_TARGET" >> "$LOG" 2>&1
-
     NODE_VER=$(node -v)
-    ok "Node.js ${NODE_VER} installed via nvm"
+    ok "Node.js ${NODE_VER} 就绪"
 }
 
 # ============================================================
 #  Step 3 - Configure npm registry (permanent)
 # ============================================================
 step3_configure_npm() {
-    step 3 "Configuring npm registry (permanent)"
+    step 3 "配置 npm 和 git"
 
-    npm config set registry "$BEST_NPM_MIRROR" >> "$LOG" 2>&1
-    ok "npm config set registry -> ${BEST_NPM_NAME}"
-
+    # 直接写 .npmrc（避免 npm config set 卡死）
+    local npm_prefix
+    npm_prefix=$(npm prefix -g 2>/dev/null || echo "$HOME/.npm-global")
     local user_npmrc="$HOME/.npmrc"
-    echo "registry=${BEST_NPM_MIRROR}" > "$user_npmrc"
-    ok "Written: ${user_npmrc}"
+    {
+        echo "registry=${BEST_NPM_MIRROR}"
+        echo "prefix=${npm_prefix}"
+    } > "$user_npmrc"
+    ok "已写入: ${user_npmrc}（registry + prefix）"
+    info "npm 全局安装目录: ${npm_prefix}"
 
-    info "Registry config is permanent - survives terminal restarts"
+    # 将 git 的 SSH 协议强制转为 HTTPS，避免 SSH host key 验证失败
+    if command -v git &>/dev/null; then
+        git config --global url."https://github.com/".insteadOf "git@github.com:"
+        git config --global url."https://".insteadOf "git://"
+        ok "git 已配置为 HTTPS 访问（防止 SSH 错误）"
+    fi
 }
 
 # ============================================================
 #  Step 4 - Configure shell environment (permanent)
 # ============================================================
 step4_configure_env() {
-    step 4 "Configuring shell environment"
+    step 4 "配置 Shell 环境变量"
 
-    # Add nvm init to shell rc if not already present
+    # 将 nvm 初始化代码写入 shell 配置文件
     if ! grep -q "NVM_DIR" "$SHELL_RC" 2>/dev/null; then
         {
             echo
-            echo '# nvm (added by OpenClaw installer)'
+            echo '# nvm（由 OpenClaw 安装脚本添加）'
             echo 'export NVM_DIR="$HOME/.nvm"'
             echo '[ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"'
             echo '[ -s "$NVM_DIR/bash_completion" ] && \. "$NVM_DIR/bash_completion"'
         } >> "$SHELL_RC"
-        ok "nvm init added to ${SHELL_RC}"
+        ok "nvm 初始化代码已写入 ${SHELL_RC}"
     else
-        info "nvm already configured in ${SHELL_RC}"
+        info "nvm 已配置在 ${SHELL_RC} 中，跳过"
     fi
 
-    # Add NODE_MIRROR env var if not present
+    # 写入 Node 镜像环境变量
     if ! grep -q "NVM_NODEJS_ORG_MIRROR" "$SHELL_RC" 2>/dev/null; then
-        echo "export NVM_NODEJS_ORG_MIRROR=\"${BEST_NODE_MIRROR}\"  # OpenClaw installer" \
+        echo "export NVM_NODEJS_ORG_MIRROR=\"${BEST_NODE_MIRROR}\"  # OpenClaw 安装脚本" \
             >> "$SHELL_RC"
-        ok "NVM_NODEJS_ORG_MIRROR set in ${SHELL_RC}"
+        ok "NVM_NODEJS_ORG_MIRROR 已写入 ${SHELL_RC}"
     fi
 }
 
@@ -219,56 +255,89 @@ step4_configure_env() {
 #  Step 5 - Install OpenClaw
 # ============================================================
 step5_install_openclaw() {
-    step 5 "Installing OpenClaw"
+    step 5 "安装 OpenClaw"
 
-    info "Registry: ${BEST_NPM_MIRROR}"
+    info "当前 npm 镜像: ${BEST_NPM_MIRROR}"
 
-    if npm list -g openclaw &>/dev/null; then
-        info "OpenClaw already installed - updating..."
-        npm update -g openclaw >> "$LOG" 2>&1
-    else
-        npm install -g openclaw >> "$LOG" 2>&1
+    # 安装 pnpm（处理 git/二进制依赖更可靠）
+    if ! command -v pnpm &>/dev/null; then
+        info "正在安装 pnpm..."
+        if npm install -g pnpm --registry "${BEST_NPM_MIRROR}" >> "$LOG" 2>&1; then
+            pnpm setup >> "$LOG" 2>&1 || true
+            export PNPM_HOME="${PNPM_HOME:-$HOME/.local/share/pnpm}"
+            [[ -d "$PNPM_HOME" ]] && export PATH="$PNPM_HOME:$PATH"
+            ok "pnpm 安装完成"
+        else
+            warn "pnpm 安装失败，将使用 npm 安装"
+        fi
     fi
 
-    if [[ ${PIPESTATUS[0]:-$?} -ne 0 ]] && ! npm list -g openclaw &>/dev/null; then
-        err "OpenClaw installation failed"
-        err "Troubleshooting:"
-        err "  1. Check network: curl ${BEST_NPM_MIRROR}"
-        err "  2. Retry: npm install -g openclaw"
-        err "  3. Full log: ${LOG}"
+    # 优先使用 pnpm
+    if command -v pnpm &>/dev/null; then
+        if command -v openclaw &>/dev/null; then
+            info "OpenClaw 已安装，升级中（pnpm）..."
+            pnpm update -g openclaw >> "$LOG" 2>&1 || true
+            return 0
+        fi
+        info "正在执行: pnpm install -g openclaw@latest --force"
+        if pnpm install -g openclaw@latest --force 2>&1 | tee -a "$LOG"; then
+            ok "OpenClaw 安装成功（pnpm）"
+            return 0
+        fi
+        warn "pnpm 安装失败，回退到 npm"
+    fi
+
+    # npm 备用
+    if command -v openclaw &>/dev/null; then
+        info "OpenClaw 已安装，升级中（npm）..."
+        npm update -g openclaw --registry "${BEST_NPM_MIRROR}" >> "$LOG" 2>&1 || true
+        return 0
+    fi
+    info "正在执行: npm install -g openclaw@latest"
+    npm install -g openclaw@latest --registry "${BEST_NPM_MIRROR}" >> "$LOG" 2>&1 || {
+        err "OpenClaw 安装失败"
+        err "  1. 检查 git: command -v git"
+        err "  2. 测试镜像: curl ${BEST_NPM_MIRROR}"
+        err "  3. 完整日志: ${LOG}"
         exit 1
-    fi
-
-    ok "OpenClaw installed"
+    }
+    ok "OpenClaw 安装成功（npm）"
 }
 
 # ============================================================
 #  Step 6 - Verify installation
 # ============================================================
 step6_verify() {
-    step 6 "Verifying installation"
+    step 6 "验证安装"
+
+    # 将 npm / pnpm 全局 bin 目录刷入 PATH
+    local npm_bin pnpm_bin
+    npm_bin="$(npm prefix -g 2>/dev/null)/bin"
+    pnpm_bin="$(pnpm bin -g 2>/dev/null)" || pnpm_bin=""
+    [[ -d "$npm_bin" ]] && export PATH="${npm_bin}:${PATH}"
+    [[ -n "$pnpm_bin" && -d "$pnpm_bin" ]] && export PATH="${pnpm_bin}:${PATH}"
 
     if ! command -v openclaw &>/dev/null; then
-        err "openclaw command not found"
-        err "Reload shell config: source ${SHELL_RC}"
-        err "Or open a new Terminal window"
+        err "openclaw 命令未找到"
+        err "请尝试: source ${SHELL_RC} && openclaw --version"
+        err "或者重新打开一个终端窗口"
         exit 1
     fi
 
     OC_VERSION=$(openclaw --version 2>/dev/null || echo "unknown")
-    ok "openclaw ${OC_VERSION} is ready"
-    log "openclaw version: ${OC_VERSION}"
+    ok "openclaw ${OC_VERSION} 已就绪"
+    log "openclaw 版本: ${OC_VERSION}"
 }
 
 # ============================================================
-#  Step 7 - Auto-start via launchd (optional)
+#  第 7 步 - 配置开机自启动（launchd）
 # ============================================================
 step7_autostart() {
-    step 7 "Auto-start configuration (optional)"
+    step 7 "配置开机自启动（可选）"
 
-    read -r -p "Configure OpenClaw Gateway to auto-start at login? [Y/N]: " DO_AUTOSTART
+    read -r -p "是否配置 OpenClaw Gateway 开机自启动？ [Y/N]: " DO_AUTOSTART
     if [[ ! "$DO_AUTOSTART" =~ ^[Yy]$ ]]; then
-        info "Skipping auto-start"
+        info "跳过自启动配置"
         return 0
     fi
 
@@ -306,48 +375,48 @@ step7_autostart() {
 PLIST
 
     launchctl load "$plist_file" 2>/dev/null || true
-    ok "LaunchAgent installed: ${plist_file}"
-    info "To disable: launchctl unload ${plist_file} && rm ${plist_file}"
+    ok "LaunchAgent 已安装: ${plist_file}"
+    info "卸载方式: launchctl unload ${plist_file} && rm ${plist_file}"
 }
 
 # ============================================================
-#  Summary + optional init/start
+#  安装汇总 + 可选初始化/启动
 # ============================================================
 summary() {
     echo
     echo "============================================================"
-    echo "  Installation Complete!"
+    echo "  安装完成！"
     echo "============================================================"
     echo
     echo "  OpenClaw    : ${OC_VERSION}"
     echo "  Node.js     : ${NODE_VER}"
-    echo "  npm mirror  : ${BEST_NPM_NAME} (${BEST_NPM_MIRROR})"
-    echo "  Node mirror : ${BEST_NODE_NAME} (${BEST_NODE_MIRROR})"
-    echo "  Shell config: ${SHELL_RC}"
-    echo "  Log file    : ${LOG}"
+    echo "  npm 镜像   : ${BEST_NPM_NAME} (${BEST_NPM_MIRROR})"
+    echo "  Node 镜像  : ${BEST_NODE_NAME} (${BEST_NODE_MIRROR})"
+    echo "  Shell 配置  : ${SHELL_RC}"
+    echo "  日志文件  : ${LOG}"
     echo
-    echo "  Next steps:"
-    echo "    source ${SHELL_RC}          # Reload shell"
-    echo "    openclaw init               # Initialize configuration"
-    echo "    openclaw gateway start      # Start the Gateway"
-    echo "    openclaw gateway status     # Check status"
-    echo "    openclaw --help             # Show all commands"
+    echo "  后续操作:"
+    echo "    source ${SHELL_RC}          # 重载 Shell 环境"
+    echo "    openclaw init               # 初始化配置"
+    echo "    openclaw gateway start      # 启动网关"
+    echo "    openclaw gateway status     # 查看网关状态"
+    echo "    openclaw --help             # 查看所有命令"
     echo "============================================================"
     echo
 
     log
-    log "Installation Complete: $(date)"
+    log "安装完成: $(date)"
     log "OpenClaw: ${OC_VERSION}"
 
-    read -r -p "Initialize OpenClaw now? [Y/N]: " DO_INIT
+    read -r -p "现在是否初始化 OpenClaw？ [Y/N]: " DO_INIT
     if [[ "$DO_INIT" =~ ^[Yy]$ ]]; then
         echo
-        info "Running: openclaw init"
+        info "正在执行: openclaw init"
         openclaw init
         echo
-        read -r -p "Start Gateway now? [Y/N]: " DO_START
+        read -r -p "现在是否启动网关？ [Y/N]: " DO_START
         if [[ "$DO_START" =~ ^[Yy]$ ]]; then
-            info "Starting Gateway..."
+            info "正在启动网关..."
             openclaw gateway start &
             sleep 2
             openclaw gateway status
@@ -355,7 +424,7 @@ summary() {
     fi
 
     echo
-    echo "Log saved to: ${LOG}"
+    echo "日志已保存到: ${LOG}"
     echo
 }
 
