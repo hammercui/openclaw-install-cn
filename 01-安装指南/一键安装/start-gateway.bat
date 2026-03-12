@@ -7,7 +7,8 @@ setlocal enabledelayedexpansion
 :: ============================================================
 
 set "GATEWAY_PORT=18789"
-set "WAIT_SECONDS=5"
+set "MAX_WAIT=30"
+set "POLL_INTERVAL=2"
 
 echo.
 echo ============================================================
@@ -46,29 +47,43 @@ echo.
 openclaw gateway start
 echo.
 
-:: ---- 等待进程就绪 ----
-echo [ INFO ] 等待 Gateway 就绪（%WAIT_SECONDS% 秒）...
-timeout /t %WAIT_SECONDS% /nobreak >nul
+:: ---- 轮询等待进程就绪（最多 MAX_WAIT 秒）----
+echo [ INFO ] 等待 Gateway 就绪（最多 %MAX_WAIT% 秒）...
+set "ELAPSED=0"
 
-:: ---- 验证启动结果 ----
-echo [ INFO ] 正在验证启动结果...
+:PollLoop
+if !ELAPSED! GEQ %MAX_WAIT% goto :PollTimeout
+
 netstat -ano 2>nul | findstr ":%GATEWAY_PORT% " | findstr "LISTENING" >nul 2>&1
-if not errorlevel 1 (
-    echo [  OK  ] Gateway 启动成功！端口 %GATEWAY_PORT% 已在监听
-    echo.
-    openclaw gateway status 2>nul
-) else (
-    echo [ERROR] Gateway 启动失败，端口 %GATEWAY_PORT% 未监听
-    echo.
-    echo         排查建议：
-    echo           1. 查看日志: openclaw gateway logs
-    echo           2. 手动启动: openclaw gateway start
-    echo           3. 查看状态: openclaw gateway status
-    echo.
-    exit /b 1
-)
+if not errorlevel 1 goto :PollSuccess
 
+:: 显示等待进度
+set /a "REMAINING=%MAX_WAIT% - !ELAPSED!"
+<nul set /p "=[ INFO ] 等待中... 已等待 !ELAPSED! 秒 / %MAX_WAIT% 秒"
+echo.
+timeout /t %POLL_INTERVAL% /nobreak >nul
+set /a "ELAPSED+=!POLL_INTERVAL!"
+goto :PollLoop
+
+:PollSuccess
+echo.
+echo [  OK  ] Gateway 启动成功！端口 %GATEWAY_PORT% 已在监听（耗时 !ELAPSED! 秒）
+echo.
+openclaw gateway status 2>nul
 echo.
 pause
 endlocal
 exit /b 0
+
+:PollTimeout
+echo.
+echo [ERROR] Gateway 启动超时，端口 %GATEWAY_PORT% 在 %MAX_WAIT% 秒内未监听
+echo.
+echo         排查建议：
+echo           1. 查看日志: openclaw gateway logs
+echo           2. 手动启动: openclaw gateway start
+echo           3. 查看状态: openclaw gateway status
+echo.
+pause
+endlocal
+exit /b 1

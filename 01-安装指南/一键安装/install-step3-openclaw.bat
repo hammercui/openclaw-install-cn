@@ -3,6 +3,7 @@ setlocal enabledelayedexpansion
 
 :: ============================================================
 ::  Stage 3: Install OpenClaw
+::  Strategy: npm first (with progress), pnpm as fallback
 :: ============================================================
 
 if not defined LOG set "LOG=%TEMP%\openclaw-install.log"
@@ -45,51 +46,91 @@ goto :eof
 call :Info "Stage 3: Installing OpenClaw"
 echo.
 
-call :Info "Registry: %BEST_NPM_MIRROR%"
+call :Info "Registry: !BEST_NPM_MIRROR!"
 
-:: Check if already installed
+:: ---- Check if already installed ----
 where openclaw >nul 2>nul
 if not errorlevel 1 (
     call :Info "OpenClaw already installed - updating..."
-    where pnpm >nul 2>nul
+    echo.
+
+    :: Detect which package manager installed it
+    set "UPDATE_PM=npm"
+    npm list -g openclaw >nul 2>nul
     if not errorlevel 1 (
-        pnpm update -g openclaw
+        set "UPDATE_PM=npm"
     ) else (
-        npm update -g openclaw --registry %BEST_NPM_MIRROR%
+        where pnpm >nul 2>nul
+        if not errorlevel 1 (
+            pnpm list -g openclaw >nul 2>nul
+            if not errorlevel 1 set "UPDATE_PM=pnpm"
+        )
     )
+
+    echo ============================================================
+    echo   Updating OpenClaw via !UPDATE_PM! (progress shown below)
+    echo ============================================================
+    echo.
+    if "!UPDATE_PM!"=="npm" (
+        npm update -g openclaw --registry !BEST_NPM_MIRROR! --loglevel http 2>&1
+    ) else (
+        pnpm update -g openclaw --reporter=default 2>&1
+    )
+    echo.
     goto :Done
 )
 
-:: ---- Try pnpm first (better for packages with git deps) ----
-where pnpm >nul 2>nul
+:: ---- Fresh install: npm first ----
+echo.
+echo ============================================================
+echo   Installing OpenClaw via npm - this may take 1-3 minutes
+echo   Progress will be displayed below:
+echo ============================================================
+echo.
+npm install -g openclaw@latest --registry !BEST_NPM_MIRROR! --loglevel http 2>&1
 if not errorlevel 1 (
-    call :Info "Using pnpm for installation (more reliable for binary deps)"
-    call :Info "Running: pnpm install -g openclaw@latest --force"
-    pnpm install -g openclaw@latest --force
-    if not errorlevel 1 (
-        call :Ok "OpenClaw installed via pnpm"
-        goto :Done
-    )
-    call :Warn "pnpm install failed - falling back to npm"
+    echo.
+    call :Ok "OpenClaw installed via npm"
+    goto :Done
 )
+echo.
+call :Warn "npm install failed - trying pnpm as fallback..."
 
-:: ---- Fallback to npm ----
-call :Info "Running: npm install -g openclaw@latest"
-npm install -g openclaw@latest --registry %BEST_NPM_MIRROR%
+:: ---- Fallback: pnpm ----
+where pnpm >nul 2>nul
 if errorlevel 1 (
-    call :Err "OpenClaw installation failed"
+    call :Err "pnpm not available either - installation failed"
     echo.
     echo  Troubleshooting:
     echo    1. Check git: where git
-    echo    2. Test registry: curl %BEST_NPM_MIRROR%
+    echo    2. Test registry: curl !BEST_NPM_MIRROR!
     echo    3. Full log: %LOG%
     echo.
     echo  Manual install:
-    echo    npm install -g openclaw@latest --registry %BEST_NPM_MIRROR% --verbose
+    echo    npm install -g openclaw@latest --registry !BEST_NPM_MIRROR! --verbose
     echo.
     exit /b 1
 )
-call :Ok "OpenClaw installed via npm"
+
+echo.
+echo ============================================================
+echo   Installing OpenClaw via pnpm (fallback) - please wait
+echo ============================================================
+echo.
+pnpm install -g openclaw@latest --force --reporter=default 2>&1
+if errorlevel 1 (
+    echo.
+    call :Err "OpenClaw installation failed via both npm and pnpm"
+    echo.
+    echo  Troubleshooting:
+    echo    1. Check git: where git
+    echo    2. Test registry: curl !BEST_NPM_MIRROR!
+    echo    3. Full log: %LOG%
+    echo.
+    exit /b 1
+)
+echo.
+call :Ok "OpenClaw installed via pnpm"
 
 :Done
 echo.
