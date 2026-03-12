@@ -12,28 +12,28 @@ set "POLL_INTERVAL=2"
 
 echo.
 echo ============================================================
-echo   OpenClaw Gateway - 检测 ^& 启动
+echo   OpenClaw Gateway - Check ^& Start
 echo ============================================================
 echo.
 
 :: ---- 检查 openclaw 命令是否可用 ----
 where openclaw >nul 2>&1
 if errorlevel 1 (
-    echo [ERROR] openclaw 命令未找到
-    echo         请先运行 install-windows.bat 安装 OpenClaw
-    echo         或重启终端使 PATH 生效后重试
+    echo [ERROR] openclaw command not found
+    echo         Please run install-windows.bat first to install OpenClaw
+    echo         Or restart the terminal and try again after PATH is updated
     echo.
     pause
     exit /b 1
 )
 
 :: ---- 检测 Gateway 是否已在运行（端口监听检测）----
-echo [ INFO ] 正在检测 Gateway 状态（端口 %GATEWAY_PORT%）...
+echo [ INFO ] Checking Gateway status ^(port %GATEWAY_PORT%^)...
 netstat -ano 2>nul | findstr ":%GATEWAY_PORT% " | findstr "LISTENING" >nul 2>&1
 if not errorlevel 1 (
-    echo [  OK  ] Gateway 已在运行中，无需重复启动
+    echo [  OK  ] Gateway is already running, no need to start again
     echo.
-    echo          端口 %GATEWAY_PORT% 正在监听
+    echo          Port %GATEWAY_PORT% is listening
     echo.
     openclaw gateway status 2>nul
     echo.
@@ -42,13 +42,13 @@ if not errorlevel 1 (
 )
 
 :: ---- Gateway 未运行，执行启动 ----
-echo [ WARN ] Gateway 未运行，正在启动...
+echo [ WARN ] Gateway is not running, starting...
 echo.
 openclaw gateway start
 echo.
 
 :: ---- 轮询等待进程就绪（最多 MAX_WAIT 秒）----
-echo [ INFO ] 等待 Gateway 就绪（最多 %MAX_WAIT% 秒）...
+echo [ INFO ] Waiting for Gateway to become ready ^(up to %MAX_WAIT% seconds^)...
 set "ELAPSED=0"
 
 :PollLoop
@@ -59,7 +59,7 @@ if not errorlevel 1 goto :PollSuccess
 
 :: 显示等待进度
 set /a "REMAINING=%MAX_WAIT% - !ELAPSED!"
-<nul set /p "=[ INFO ] 等待中... 已等待 !ELAPSED! 秒 / %MAX_WAIT% 秒"
+<nul set /p "=[ INFO ] Waiting... elapsed !ELAPSED!s / %MAX_WAIT%s"
 echo.
 timeout /t %POLL_INTERVAL% /nobreak >nul
 set /a "ELAPSED+=!POLL_INTERVAL!"
@@ -67,7 +67,7 @@ goto :PollLoop
 
 :PollSuccess
 echo.
-echo [  OK  ] Gateway 启动成功！端口 %GATEWAY_PORT% 已在监听（耗时 !ELAPSED! 秒）
+echo [  OK  ] Gateway started successfully! Port %GATEWAY_PORT% is listening ^(elapsed !ELAPSED!s^)
 echo.
 openclaw gateway status 2>nul
 echo.
@@ -77,12 +77,12 @@ exit /b 0
 
 :PollTimeout
 echo.
-echo [ERROR] Gateway 启动超时，端口 %GATEWAY_PORT% 在 %MAX_WAIT% 秒内未监听
+echo [ERROR] Gateway startup timed out. Port %GATEWAY_PORT% did not start listening within %MAX_WAIT% seconds
 echo.
-echo         排查建议：
-echo           1. 查看日志: openclaw gateway logs
-echo           2. 手动启动: openclaw gateway start
-echo           3. 查看状态: openclaw gateway status
+echo         Troubleshooting suggestions:
+echo           1. View logs: openclaw gateway logs
+echo           2. Start manually: openclaw gateway start
+echo           3. Check status: openclaw gateway status
 echo.
 pause
 endlocal
