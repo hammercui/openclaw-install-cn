@@ -1,308 +1,85 @@
-# Linux安装指南 - 小龙虾(OpenClaw)
-> **适用**: Ubuntu 20.04/22.04, Debian 11/12, Arch Linux, CentOS/Rocky Linux
-> **难度**: ⭐ 简单
-> **时间**: 10分钟
-> **推荐度**: ⭐⭐⭐⭐⭐
+# Linux 安装指南
+
+> 支持：Ubuntu 20.04+、Debian 11+、CentOS/Rocky Linux、Arch Linux、openSUSE 等主流发行版
+
+## 快速开始
+
+```bash
+bash install-linux.sh
+```
+
+脚本全程自动完成，无需手动操作。
 
 ---
 
-## 前置要求
+## 安装过程说明
 
-### 系统要求
-CPU, 最低=2核心, 推荐=4核心+
-内存, 最低=4GB, 推荐=8GB+
-磁盘, 最低=10GB, 推荐=20GB+ SSD
-网络, 最低=稳定, 推荐=宽带
+共 7 步，全程自动：
 
-### 检查系统
-```bash
-# 检查操作系统
-cat /etc/os-release
+| 步骤 | 内容 |
+|------|------|
+| 1 | 测试镜像速度，选择最快的 npm / Node.js 镜像源 |
+| 2 | 检查 / 安装 Node.js 22.12+（通过 nvm，从 Gitee 镜像） |
+| 3 | 配置 npm（写入 `~/.npmrc`） |
+| 4 | 配置 Shell 环境变量（写入 `~/.bashrc` 或 `~/.zshrc`） |
+| 5 | 安装 OpenClaw（pnpm 优先，npm 备用） |
+| 6 | 验证安装 |
+| 7 | 配置开机自启动（systemd 用户服务或 crontab，可选，询问） |
 
-# 检查Node.js(需要22+)
-node --version
+**镜像源**：自动从淘宝、腾讯云、华为云中选最快的。
 
-# 检查npm
-npm --version
+---
 
-# 检查Python(某些skills需要)
-python3 --version
-```
-
-## 安装步骤
-
-### 步骤1:安装Node.js 22+
-
-**Ubuntu/Debian**:
-```bash
-# 使用NodeSource仓库
-curl -fsSL https://deb.nodesource.com/setup_22.x | sudo -E bash -
-sudo apt-get install -y nodejs
-
-# 验证
-node --version # 应显示 v22.x.x
-```
-
-**Arch Linux**:
-```bash
-sudo pacman -S nodejs npm
-```
-
-**CentOS/Rocky Linux**:
-```bash
-curl -fsSL https://rpm.nodesource.com/setup_22.x | sudo bash -
-sudo yum install -y nodejs
-```
-
-### 步骤2:安装OpenClaw
+## 安装完成后
 
 ```bash
-# 全局安装
-sudo npm install -g openclaw
-
-# 验证安装
-openclaw --version
-openclaw help
+source ~/.bashrc           # 重载 Shell 环境（bash 用户）
+source ~/.zshrc            # 重载 Shell 环境（zsh 用户）
+openclaw init              # 初始化配置
+openclaw gateway start     # 启动 Gateway
+openclaw gateway status    # 查看状态
+openclaw --help            # 查看所有命令
 ```
 
-### 步骤3:初始化配置
+**开机自启动管理**（安装时选 Y 自动配置）：
 
 ```bash
-# 运行初始化向导
-openclaw init
-
-# - 默认模型: zai/glm-4.7
+systemctl --user status openclaw-gateway    # 查看状态
+systemctl --user stop openclaw-gateway      # 停止
+systemctl --user disable openclaw-gateway   # 取消自启
 ```
 
-### 步骤4:启动Gateway
+---
+
+## 故障排除
+
+**`openclaw` 命令未找到**
 
 ```bash
-# 启动Gateway
-openclaw gateway start
-
-# 检查状态
-openclaw gateway status
-
-# 查看日志
-tail -f ~/.openclaw/logs/gateway.log
+source ~/.bashrc
+# 或重新打开终端
 ```
 
-## ⚙️ 系统配置
-
-### 配置开机自启动(推荐)
-**使用systemd**:
+**权限错误 `EACCES`**
 
 ```bash
-# 创建service文件
-sudo vim /etc/systemd/system/openclaw.service
-```
-
-内容:
-```ini
-[Unit]
-Description=OpenClaw Gateway
-After=network.target
-
-[Service]
-Type=simple
-User=YOUR_USERNAME
-WorkingDirectory=/home/YOUR_USERNAME/.openclaw
-ExecStart=/usr/bin/openclaw gateway start
-Restart=on-failure
-RestartSec=10
-
-[Install]
-WantedBy=multi-user.target
-```
-
-启用:
-```bash
-# 重载systemd
-sudo systemctl daemon-reload
-
-# 启用开机自启
-sudo systemctl enable openclaw
-
-# 启动服务
-sudo systemctl start openclaw
-
-# 查看状态
-sudo systemctl status openclaw
-```
-
-### 配置防火墙
-如果使用远程访问:
-
-```bash
-# Ubuntu/Debian
-sudo ufw allow 18789/tcp
-
-# CentOS/Rocky Linux
-sudo firewall-cmd --permanent --add-port=18789/tcp
-sudo firewall-cmd --reload
-```
-
-### 常用命令
-
-```bash
-# Gateway管理
-openclaw gateway status  # 状态
-openclaw gateway start   # 启动
-openclaw gateway stop    # 停止
-openclaw gateway restart # 重启
-openclaw gateway logs    # 日志
-
-# 配置管理
-openclaw config get    # 查看配置
-openclaw config schema # 配置schema
-
-# Session管理
-openclaw sessions list
-openclaw sessions history
-```
-
-## 发行版特定说明
-
-### Ubuntu/Debian
-**安装依赖**:
-```bash
-sudo apt update
-sudo apt install -y build-essential git python3 python3-pip
-```
-
-**安装时遇到问题?**
-```bash
-# 清理npm缓存
-sudo npm cache clean --force
-
-# 重新安装
-sudo npm install -g openclaw --unsafe-perm=true
-```
-
-### Arch Linux
-**使用yay安装**:
-```bash
-yay -S openclaw
-```
-
-**或使用AUR helper**:
-```bash
-git clone https://aur.archlinux.org/openclaw.git
-cd openclaw
-makepkg -si
-```
-
-### CentOS/Rocky Linux
-**安装开发工具**:
-```bash
-sudo yum groupinstall "Development Tools"
-sudo yum install git python3
-```
-
-## 接入IM
-
-```bash
-# 编辑配置
-vim ~/.openclaw/openclaw.json
-```
-
-添加:
-```json
-{
-  "channels": {
-    "telegram": {
-      "enabled": true,
-      "token": "YOUR_BOT_TOKEN"
-    }
-  }
-}
-```
-
-```bash
-# 重启
-openclaw gateway restart
-```
-
-详细步骤:[Telegram接入指南](../03-IM平台集成/Telegram接入.md)
-
-### 飞书(企业推荐)
-详见:[飞书接入指南](../03-IM平台集成/飞书接入.md)
-
-### QQ机器人
-详见:[QQ接入指南](../03-IM平台集成/QQ接入.md)
-
-## 故障排查
-
-### 问题1:命令未找到
-
-```
-openclaw: command not found
-```
-
-```bash
-# 卸载旧版本
-sudo apt remove nodejs npm
-
-# 安装NodeSource 22.x
-curl -fsSL https://deb.nodesource.com/setup_22.x | sudo -E bash -
-sudo apt-get install -y nodejs
-```
-
-### 问题2:权限错误
-
-```
-EACCES: permission denied
-```
-
-```bash
-# 解决:配置npm prefix
 mkdir ~/.npm-global
 npm config set prefix '~/.npm-global'
-
-# 添加到PATH
 echo 'export PATH=~/.npm-global/bin:$PATH' >> ~/.bashrc
 source ~/.bashrc
-
 npm install -g openclaw
 ```
 
-### 问题3:端口占用
-
-```
-Error: Port 18789 already in use
-```
+**端口 18789 被占用**
 
 ```bash
-# 查找占用进程
 sudo lsof -i :18789
-
-# 杀掉进程
 sudo kill -9 <PID>
-
-# 重启Gateway
 openclaw gateway restart
 ```
 
-### 通用调试
+**查看完整日志**
 
 ```bash
-# 查看详细日志
-openclaw gateway logs
-
-# 检查配置文件
-cat ~/.openclaw/openclaw.json | python3 -m json.tool
-
-# 重置配置
-mv ~/.openclaw/openclaw.json ~/.openclaw/openclaw.json.bak
+cat /tmp/openclaw-install-linux.log
 ```
-
-## 下一步
-1. 安装完成
-2. [接入IM平台](../03-IM平台集成/README.md)
-3. [学习常用命令](../05-参考文档/快速参考卡.md)
-
-## 获取帮助
-- [完整文档](https://docs.openclaw.ai), [社区Discord](https://discord.gg/clawd), [报告问题](https://github.com/openclaw/openclaw/issues)
-
-**更新时间**: 2026-03-11
-**维护者**: Zandar
