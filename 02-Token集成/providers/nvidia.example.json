@@ -1,0 +1,132 @@
+{
+  "providers": [
+    {
+      "id": "nvidia-nim",
+      "name": "NVIDIA NIM",
+      "description": "NVIDIA Nemotron-3-Super 120B 模型，支持 1M 上下文和强大的工具调用能力",
+      "api": "openai-chat",
+      "api_base": "https://integrate.api.nvidia.com/v1",
+      "api_key": "nvapi-你的NVIDIA_API_KEY_粘贴在这里",
+      "models": [
+        {
+          "id": "nvidia/nemotron-3-super-120b-a12b",
+          "name": "Nemotron-3-Super 120B-A12B",
+          "description": "主模型：120B 参数，1M 上下文，优秀的工具调用和多步推理能力",
+          "max_tokens": 131072,
+          "context_length": 1048576,
+          "supports_tools": true,
+          "tool_choice": "auto",
+          "recommended": {
+            "temperature": 0.6,
+            "top_p": 0.95,
+            "max_tokens": 8192
+          }
+        },
+        {
+          "id": "nvidia/nemotron-3-nano-30b-a3b:free",
+          "name": "Nemotron-3-Nano 30B (免费备用)",
+          "description": "备用模型：30B 参数，免费额度，适合轻量任务",
+          "max_tokens": 32768,
+          "context_length": 131072,
+          "supports_tools": true,
+          "fallback": true
+        }
+      ],
+      "capabilities": {
+        "streaming": true,
+        "function_calling": true,
+        "vision": false,
+        "long_context": true,
+        "max_context": 1048576
+      },
+      "pricing": {
+        "currency": "USD",
+        "input_per_1m": "免费",
+        "output_per_1m": "免费",
+        "notes": "免费额度充足，适合开发和测试"
+      },
+      "endpoints": {
+        "chat": "https://integrate.api.nvidia.com/v1/chat/completions",
+        "models": "https://integrate.api.nvidia.com/v1/models"
+      },
+      "rate_limits": {
+        "requests_per_minute": "待确认",
+        "tokens_per_minute": "待确认",
+        "notes": "免费额度通常足够个人使用"
+      },
+      "recommended_usage": {
+        "primary_tasks": [
+          "复杂多步推理",
+          "工具链调用",
+          "长文档分析",
+          "代码生成和审查"
+        ],
+        "avoid_tasks": [
+          "图像识别（不支持）",
+          "实时音频处理"
+        ]
+      },
+      "optimization_tips": {
+        "temperature": {
+          "code_generation": 0.2,
+          "tool_calls": 0.6,
+          "creative_writing": 0.8
+        },
+        "context_length": {
+          "short": 4096,
+          "medium": 32768,
+          "long": 131072,
+          "maximum": 1048576
+        }
+      },
+      "troubleshooting": {
+        "common_issues": [
+          {
+            "issue": "工具调用不触发",
+            "solutions": [
+              "检查 temperature 是否 ≤ 0.6",
+              "确认 supports_tools: true",
+              "Prompt 中明确要求使用工具"
+            ]
+          },
+          {
+            "issue": "API Rate Limit",
+            "solutions": [
+              "等待几分钟后重试",
+              "切换到 Nano 免费模型",
+              "添加本地模型作为 fallback"
+            ]
+          },
+          {
+            "issue": "日本网络访问慢",
+            "solutions": [
+              "通常不需要代理",
+              "检查网络连接",
+              "增加 timeout 设置"
+            ]
+          }
+        ]
+      }
+    }
+  ],
+  "agents": {
+    "defaults": {
+      "model": {
+        "primary": "nvidia/nemotron-3-super-120b-a12b",
+        "fallback": ["nvidia/nemotron-3-nano-30b-a3b:free"]
+      },
+      "temperature": 0.6,
+      "top_p": 0.95,
+      "max_tokens": 8192,
+      "tool_choice": "auto",
+      "max_context": 524288
+    }
+  },
+  "notes": {
+    "installation": "将 api_key 替换为你的 NVIDIA API Key，然后运行 openclaw gateway restart",
+    "api_key_link": "https://build.nvidia.com/account/api-keys",
+    "documentation": "https://build.nvidia.com",
+    "community": "https://discord.com/invite/clawd",
+    "last_updated": "2026-03-12"
+  }
+}
