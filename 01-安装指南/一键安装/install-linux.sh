@@ -248,16 +248,38 @@ _configure_git_https() {
 step3_configure_npm() {
     step 3 "配置 npm（永久生效）"
 
-    # 直接写 .npmrc（避免 npm config set 卡死）
-    local npm_prefix
-    npm_prefix=$(npm prefix -g 2>/dev/null || echo "$HOME/.npm-global")
     local user_npmrc="$HOME/.npmrc"
-    {
-        echo "registry=${BEST_NPM_MIRROR}"
-        echo "prefix=${npm_prefix}"
-    } > "$user_npmrc"
-    ok "已写入: ${user_npmrc}（registry + prefix）"
-    info "npm 全局安装目录: ${npm_prefix}"
+
+    # 安全更新 .npmrc：仅修改 registry（和可选 prefix），保留用户已有配置
+    if [[ -f "$user_npmrc" ]]; then
+        sed -i.bak '/^registry=/d' "$user_npmrc" 2>/dev/null || true
+        rm -f "${user_npmrc}.bak" 2>/dev/null
+    fi
+
+    # nvm 环境下只写 registry，不写 prefix（prefix 由 nvm 管理，写入会冲突）
+    if [[ -s "$NVM_DIR/nvm.sh" ]]; then
+        # 同时清除残留的 prefix（与 nvm 冲突）
+        if [[ -f "$user_npmrc" ]]; then
+            sed -i.bak '/^prefix=/d;/^globalconfig=/d' "$user_npmrc" 2>/dev/null || true
+            rm -f "${user_npmrc}.bak" 2>/dev/null
+        fi
+        echo "registry=${BEST_NPM_MIRROR}" >> "$user_npmrc"
+        ok "已更新: ${user_npmrc}（registry=${BEST_NPM_MIRROR}，prefix 由 nvm 管理）"
+    else
+        # 非 nvm 环境才需要手动指定 prefix
+        local npm_prefix
+        npm_prefix=$(npm prefix -g 2>/dev/null || echo "$HOME/.npm-global")
+        if [[ -f "$user_npmrc" ]]; then
+            sed -i.bak '/^prefix=/d' "$user_npmrc" 2>/dev/null || true
+            rm -f "${user_npmrc}.bak" 2>/dev/null
+        fi
+        {
+            echo "registry=${BEST_NPM_MIRROR}"
+            echo "prefix=${npm_prefix}"
+        } >> "$user_npmrc"
+        ok "已更新: ${user_npmrc}（registry + prefix）"
+        info "npm 全局安装目录: ${npm_prefix}"
+    fi
 }
 
 # ============================================================
@@ -280,12 +302,14 @@ step4_configure_env() {
         info "nvm 已配置在 ${SHELL_RC} 中，跳过"
     fi
 
-    # 写入 Node 镜像环境变量
-    if ! grep -q "NVM_NODEJS_ORG_MIRROR" "$SHELL_RC" 2>/dev/null; then
-        echo "export NVM_NODEJS_ORG_MIRROR=\"${BEST_NODE_MIRROR}\"  # OpenClaw 安装脚本" \
-            >> "$SHELL_RC"
-        ok "NVM_NODEJS_ORG_MIRROR 已写入 ${SHELL_RC}"
+    # 写入/更新 Node 镜像环境变量
+    if grep -q "NVM_NODEJS_ORG_MIRROR" "$SHELL_RC" 2>/dev/null; then
+        sed -i.bak '/NVM_NODEJS_ORG_MIRROR/d' "$SHELL_RC" 2>/dev/null || true
+        rm -f "${SHELL_RC}.bak" 2>/dev/null
     fi
+    echo "export NVM_NODEJS_ORG_MIRROR=\"${BEST_NODE_MIRROR}\"  # OpenClaw 安装脚本" \
+        >> "$SHELL_RC"
+    ok "NVM_NODEJS_ORG_MIRROR 已写入 ${SHELL_RC}（${BEST_NODE_NAME}）"
 }
 
 # ============================================================

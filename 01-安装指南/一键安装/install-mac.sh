@@ -146,6 +146,13 @@ step2_check_nodejs() {
 
     detect_shell_rc
 
+    # 清除 .npmrc 中的 prefix/globalconfig（与 nvm 冲突）
+    local user_npmrc="$HOME/.npmrc"
+    if [[ -f "$user_npmrc" ]]; then
+        sed -i.bak '/^prefix=/d;/^globalconfig=/d' "$user_npmrc" 2>/dev/null || true
+        rm -f "${user_npmrc}.bak" 2>/dev/null
+    fi
+
     # 加载 nvm
     export NVM_DIR
     [[ -s "$NVM_DIR/nvm.sh" ]] && source "$NVM_DIR/nvm.sh" || true
@@ -154,7 +161,8 @@ step2_check_nodejs() {
         NODE_VER=$(node -v)
         ok "检测到 Node.js: ${NODE_VER}"
         if check_node_ver; then
-            ok "版本模算通过（要求 v${NODE_MIN_MAJOR}.${NODE_MIN_MINOR}+）"
+            ok "版本检查通过（要求 v${NODE_MIN_MAJOR}.${NODE_MIN_MINOR}+）"
+            _configure_git_https
             return 0
         else
             warn "${NODE_VER} 版本过低，将进行升级..."
@@ -199,28 +207,50 @@ step2_check_nodejs() {
 }
 
 # ============================================================
-#  Step 3 - Configure npm registry (permanent)
+#  Configure git to use HTTPS (prevent SSH host key failures)
 # ============================================================
-step3_configure_npm() {
-    step 3 "配置 npm 和 git"
-
-    # 直接写 .npmrc（避免 npm config set 卡死）
-    local npm_prefix
-    npm_prefix=$(npm prefix -g 2>/dev/null || echo "$HOME/.npm-global")
-    local user_npmrc="$HOME/.npmrc"
-    {
-        echo "registry=${BEST_NPM_MIRROR}"
-        echo "prefix=${npm_prefix}"
-    } > "$user_npmrc"
-    ok "已写入: ${user_npmrc}（registry + prefix）"
-    info "npm 全局安装目录: ${npm_prefix}"
-
-    # 将 git 的 SSH 协议强制转为 HTTPS，避免 SSH host key 验证失败
+_configure_git_https() {
     if command -v git &>/dev/null; then
         git config --global url."https://github.com/".insteadOf "git@github.com:"
         git config --global url."https://".insteadOf "git://"
         ok "git 已配置为 HTTPS 访问（防止 SSH 错误）"
     fi
+}
+
+# ============================================================
+#  Step 3 - Configure npm registry (permanent)
+# ============================================================
+step3_configure_npm() {
+    step 3 "配置 npm 和 git"
+
+    local user_npmrc="$HOME/.npmrc"
+
+    # 安全更新 .npmrc：仅修改 registry（和可选 prefix），保留用户已有配置
+    if [[ -f "$user_npmrc" ]]; then
+        # 移除旧的 registry 行（稍后追加新值）
+        sed -i.bak '/^registry=/d' "$user_npmrc" 2>/dev/null || true
+        rm -f "${user_npmrc}.bak" 2>/dev/null
+    fi
+
+    # nvm 环境下只写 registry，不写 prefix（prefix 由 nvm 管理，写入会冲突）
+    if [[ -s "$NVM_DIR/nvm.sh" ]]; then
+        echo "registry=${BEST_NPM_MIRROR}" >> "$user_npmrc"
+        ok "已更新: ${user_npmrc}（registry=${BEST_NPM_MIRROR}，prefix 由 nvm 管理）"
+    else
+        # 非 nvm 环境才需要手动指定 prefix
+        local npm_prefix
+        npm_prefix=$(npm prefix -g 2>/dev/null || echo "$HOME/.npm-global")
+        sed -i.bak '/^prefix=/d' "$user_npmrc" 2>/dev/null || true
+        rm -f "${user_npmrc}.bak" 2>/dev/null
+        {
+            echo "registry=${BEST_NPM_MIRROR}"
+            echo "prefix=${npm_prefix}"
+        } >> "$user_npmrc"
+        ok "已更新: ${user_npmrc}（registry + prefix）"
+        info "npm 全局安装目录: ${npm_prefix}"
+    fi
+
+    _configure_git_https
 }
 
 # ============================================================
@@ -243,12 +273,15 @@ step4_configure_env() {
         info "nvm 已配置在 ${SHELL_RC} 中，跳过"
     fi
 
-    # 写入 Node 镜像环境变量
-    if ! grep -q "NVM_NODEJS_ORG_MIRROR" "$SHELL_RC" 2>/dev/null; then
-        echo "export NVM_NODEJS_ORG_MIRROR=\"${BEST_NODE_MIRROR}\"  # OpenClaw 安装脚本" \
-            >> "$SHELL_RC"
-        ok "NVM_NODEJS_ORG_MIRROR 已写入 ${SHELL_RC}"
+    # 写入/更新 Node 镜像环境变量
+    if grep -q "NVM_NODEJS_ORG_MIRROR" "$SHELL_RC" 2>/dev/null; then
+        # 已存在则更新值（镜像可能在重跑时变化）
+        sed -i.bak '/NVM_NODEJS_ORG_MIRROR/d' "$SHELL_RC" 2>/dev/null || true
+        rm -f "${SHELL_RC}.bak" 2>/dev/null
     fi
+    echo "export NVM_NODEJS_ORG_MIRROR=\"${BEST_NODE_MIRROR}\"  # OpenClaw 安装脚本" \
+        >> "$SHELL_RC"
+    ok "NVM_NODEJS_ORG_MIRROR 已写入 ${SHELL_RC}（${BEST_NODE_NAME}）"
 }
 
 # ============================================================
@@ -290,11 +323,11 @@ step5_install_openclaw() {
     # npm 备用
     if command -v openclaw &>/dev/null; then
         info "OpenClaw 已安装，升级中（npm）..."
-        npm update -g openclaw --registry "${BEST_NPM_MIRROR}" >> "$LOG" 2>&1 || true
+        npm update -g openclaw --registry "${BEST_NPM_MIRROR}" --loglevel http 2>&1 | tee -a "$LOG" || true
         return 0
     fi
-    info "正在执行: npm install -g openclaw@latest"
-    npm install -g openclaw@latest --registry "${BEST_NPM_MIRROR}" >> "$LOG" 2>&1 || {
+    info "正在执行: npm install -g openclaw@latest（进度显示如下）"
+    npm install -g openclaw@latest --registry "${BEST_NPM_MIRROR}" --loglevel http 2>&1 | tee -a "$LOG" || {
         err "OpenClaw 安装失败"
         err "  1. 检查 git: command -v git"
         err "  2. 测试镜像: curl ${BEST_NPM_MIRROR}"
@@ -310,18 +343,79 @@ step5_install_openclaw() {
 step6_verify() {
     step 6 "验证安装"
 
-    # 将 npm / pnpm 全局 bin 目录刷入 PATH
-    local npm_bin pnpm_bin
+    # 重载 nvm 环境（不能 source .zshrc，因为当前是 bash 进程，zsh 语法会导致崩溃）
+    export NVM_DIR="${NVM_DIR:-$HOME/.nvm}"
+    [[ -s "$NVM_DIR/nvm.sh" ]] && source "$NVM_DIR/nvm.sh" 2>/dev/null || true
+
+    # 重建 PATH：覆盖所有可能的全局 bin 路径
+    local npm_bin nvm_bin pnpm_bin pnpm_home
+
+    # 1. nvm 当前版本的 bin 目录（最关键）
+    if command -v node &>/dev/null; then
+        nvm_bin="$(dirname "$(command -v node)")"
+        [[ -d "$nvm_bin" ]] && export PATH="${nvm_bin}:${PATH}"
+        info "Node bin: ${nvm_bin}"
+    fi
+
+    # 2. npm 全局 prefix/bin
     npm_bin="$(npm prefix -g 2>/dev/null)/bin"
-    pnpm_bin="$(pnpm bin -g 2>/dev/null)" || pnpm_bin=""
     [[ -d "$npm_bin" ]] && export PATH="${npm_bin}:${PATH}"
+    info "npm  bin: ${npm_bin}"
+
+    # 3. pnpm 全局 bin
+    pnpm_bin="$(pnpm bin -g 2>/dev/null)" || pnpm_bin=""
     [[ -n "$pnpm_bin" && -d "$pnpm_bin" ]] && export PATH="${pnpm_bin}:${PATH}"
+
+    # 4. pnpm home
+    pnpm_home="${PNPM_HOME:-$HOME/.local/share/pnpm}"
+    [[ -d "$pnpm_home" ]] && export PATH="${pnpm_home}:${PATH}"
 
     if ! command -v openclaw &>/dev/null; then
         err "openclaw 命令未找到"
-        err "请尝试: source ${SHELL_RC} && openclaw --version"
-        err "或者重新打开一个终端窗口"
-        exit 1
+        echo
+        info "路径诊断:"
+        local scan_dirs=(
+            "${nvm_bin:-}"
+            "${npm_bin:-}"
+            "${pnpm_bin:-}"
+            "$pnpm_home"
+            "$HOME/.npm-global/bin"
+        )
+        for dir in "${scan_dirs[@]}"; do
+            if [[ -n "$dir" && -f "$dir/openclaw" ]]; then
+                echo -e "  ${GREEN}Found:${NC} $dir/openclaw"
+                warn "文件存在但不在 PATH 中，尝试手动添加..."
+                export PATH="$dir:$PATH"
+            elif [[ -n "$dir" && -d "$dir" ]]; then
+                echo -e "  ${GRAY}Scanned (not found):${NC} $dir"
+            fi
+        done
+        echo
+
+        # 全局搜索 openclaw 可执行文件
+        local found_path=""
+        found_path=$(find "$HOME/.nvm" "$HOME/.npm-global" "$HOME/.local" -name "openclaw" -type f -perm +111 2>/dev/null | head -1) || true
+        if [[ -n "$found_path" ]]; then
+            warn "全局搜索发现: ${found_path}"
+            local found_dir
+            found_dir="$(dirname "$found_path")"
+            export PATH="$found_dir:$PATH"
+            info "已临时添加到 PATH: $found_dir"
+        fi
+
+        # 再次尝试
+        if ! command -v openclaw &>/dev/null; then
+            local npm_global_dir
+            npm_global_dir="$(npm prefix -g 2>/dev/null)/lib/node_modules/openclaw"
+            if [[ -d "$npm_global_dir" ]]; then
+                warn "包已安装在 ${npm_global_dir}，但 bin 链接可能缺失"
+                info "修复方式: npm install -g openclaw@latest --force"
+            fi
+            echo
+            err "请尝试: source ${SHELL_RC} && openclaw --version"
+            err "或者重新打开一个终端窗口"
+            exit 1
+        fi
     fi
 
     OC_VERSION=$(openclaw --version 2>/dev/null || echo "unknown")
@@ -330,57 +424,104 @@ step6_verify() {
 }
 
 # ============================================================
-#  第 7 步 - 配置开机自启动（launchd）
+#  第 7 步 - 初始化 + 启动网关 + 配置开机自启动
 # ============================================================
-step7_autostart() {
-    step 7 "配置开机自启动（可选）"
+GATEWAY_PORT=18789
 
-    read -r -p "是否配置 OpenClaw Gateway 开机自启动？ [Y/N]: " DO_AUTOSTART
-    if [[ ! "$DO_AUTOSTART" =~ ^[Yy]$ ]]; then
-        info "跳过自启动配置"
-        return 0
+# 检测 Gateway 端口是否在监听
+_check_gateway_port() {
+    if command -v lsof &>/dev/null; then
+        lsof -iTCP:"${GATEWAY_PORT}" -sTCP:LISTEN -P -n &>/dev/null
+    elif command -v ss &>/dev/null; then
+        ss -tlnp 2>/dev/null | grep -q ":${GATEWAY_PORT} "
+    elif command -v netstat &>/dev/null; then
+        netstat -tlnp 2>/dev/null | grep -q ":${GATEWAY_PORT} "
+    else
+        return 1
+    fi
+}
+
+# 轮询等待 Gateway 就绪
+_wait_gateway() {
+    local max_wait=30 poll_interval=2 elapsed=0
+    info "等待 Gateway 就绪（最多 ${max_wait} 秒）..."
+    while [[ $elapsed -lt $max_wait ]]; do
+        if _check_gateway_port; then
+            echo
+            ok "Gateway 启动成功！端口 ${GATEWAY_PORT} 已监听（耗时 ${elapsed}s）"
+            openclaw gateway status 2>/dev/null || true
+            return 0
+        fi
+        printf "\r${CYAN}[ INFO ]${NC} 等待中... %ds / %ds" "$elapsed" "$max_wait"
+        sleep "$poll_interval"
+        elapsed=$((elapsed + poll_interval))
+    done
+    echo
+    warn "Gateway 启动超时（${max_wait}s），请手动检查:"
+    warn "  openclaw gateway logs"
+    warn "  openclaw gateway status"
+    return 1
+}
+
+step7_init_and_autostart() {
+    step 7 "初始化配置 + 安装 Gateway 服务 + 开机自启动"
+
+    # ---- 7.1 初始化 OpenClaw ----
+    info "Step 7.1: 初始化 OpenClaw 配置"
+    read -r -p "是否立即初始化 OpenClaw？ [Y/N]: " DO_INIT
+    if [[ "$DO_INIT" =~ ^[Yy]$ ]]; then
+        echo
+        info "正在执行: openclaw init"
+        openclaw init || warn "初始化未完成，可稍后手动执行: openclaw init"
+        echo
+    else
+        info "跳过初始化（后续可执行: openclaw init）"
     fi
 
-    local agents_dir="$HOME/Library/LaunchAgents"
-    local plist_file="$agents_dir/com.openclaw.gateway.plist"
-    local openclaw_path
-    openclaw_path=$(command -v openclaw)
+    # ---- 7.2 安装并启动 Gateway 服务 ----
+    echo
+    info "Step 7.2: 安装 Gateway 服务（LaunchAgent）"
 
-    mkdir -p "$agents_dir"
+    # 清理脚本旧版本手动创建的 plist（标签不匹配，会冲突）
+    local old_plist="$HOME/Library/LaunchAgents/com.openclaw.gateway.plist"
+    if [[ -f "$old_plist" ]]; then
+        launchctl unload "$old_plist" 2>/dev/null || true
+        rm -f "$old_plist"
+        info "已清理旧版 plist: ${old_plist}"
+    fi
 
-    cat > "$plist_file" << PLIST
-<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
-  "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0">
-<dict>
-    <key>Label</key>
-    <string>com.openclaw.gateway</string>
-    <key>ProgramArguments</key>
-    <array>
-        <string>${openclaw_path}</string>
-        <string>gateway</string>
-        <string>start</string>
-    </array>
-    <key>RunAtLoad</key>
-    <true/>
-    <key>KeepAlive</key>
-    <false/>
-    <key>StandardOutPath</key>
-    <string>/tmp/openclaw-gateway.log</string>
-    <key>StandardErrorPath</key>
-    <string>/tmp/openclaw-gateway-error.log</string>
-</dict>
-</plist>
-PLIST
+    if _check_gateway_port; then
+        ok "Gateway 已在运行（端口 ${GATEWAY_PORT}）"
+    else
+        read -r -p "是否安装并启动 Gateway 服务？ [Y/N]: " DO_INSTALL
+        if [[ "$DO_INSTALL" =~ ^[Yy]$ ]]; then
+            echo
+            # openclaw gateway install: 安装 LaunchAgent + 启动服务 + 开机自启动（一步到位）
+            info "正在执行: openclaw gateway install"
+            openclaw gateway install 2>&1 || {
+                warn "openclaw gateway install 失败，尝试备用方式..."
+                # 备用: 使用 launchctl bootstrap 手动加载
+                local plist="$HOME/Library/LaunchAgents/ai.openclaw.gateway.plist"
+                if [[ -f "$plist" ]]; then
+                    info "尝试: launchctl bootstrap gui/\$(id -u) ${plist}"
+                    launchctl bootstrap "gui/$(id -u)" "$plist" 2>/dev/null || true
+                fi
+            }
+            echo
+            _wait_gateway
+        else
+            info "跳过安装（后续可执行: openclaw gateway install）"
+        fi
+    fi
 
-    launchctl load "$plist_file" 2>/dev/null || true
-    ok "LaunchAgent 已安装: ${plist_file}"
-    info "卸载方式: launchctl unload ${plist_file} && rm ${plist_file}"
+    # ---- 7.3 验证 Gateway 服务状态 ----
+    echo
+    info "Step 7.3: 验证 Gateway 服务"
+    openclaw gateway status 2>/dev/null || true
 }
 
 # ============================================================
-#  安装汇总 + 可选初始化/启动
+#  安装汇总
 # ============================================================
 summary() {
     echo
@@ -395,11 +536,13 @@ summary() {
     echo "  Shell 配置  : ${SHELL_RC}"
     echo "  日志文件  : ${LOG}"
     echo
-    echo "  后续操作:"
-    echo "    source ${SHELL_RC}          # 重载 Shell 环境"
+    echo "  常用命令:"
+    echo "    source ${SHELL_RC}          # 重载 Shell 环境（新终端自动生效）"
     echo "    openclaw init               # 初始化配置"
-    echo "    openclaw gateway start      # 启动网关"
-    echo "    openclaw gateway status     # 查看网关状态"
+    echo "    openclaw gateway install    # 安装 Gateway 服务（含开机自启动）"
+    echo "    openclaw gateway status     # 查看 Gateway 状态"
+    echo "    openclaw gateway logs       # 查看 Gateway 日志"
+    echo "    openclaw status             # 查看全局状态"
     echo "    openclaw --help             # 查看所有命令"
     echo "============================================================"
     echo
@@ -408,22 +551,6 @@ summary() {
     log "安装完成: $(date)"
     log "OpenClaw: ${OC_VERSION}"
 
-    read -r -p "现在是否初始化 OpenClaw？ [Y/N]: " DO_INIT
-    if [[ "$DO_INIT" =~ ^[Yy]$ ]]; then
-        echo
-        info "正在执行: openclaw init"
-        openclaw init
-        echo
-        read -r -p "现在是否启动网关？ [Y/N]: " DO_START
-        if [[ "$DO_START" =~ ^[Yy]$ ]]; then
-            info "正在启动网关..."
-            openclaw gateway start &
-            sleep 2
-            openclaw gateway status
-        fi
-    fi
-
-    echo
     echo "日志已保存到: ${LOG}"
     echo
 }
@@ -439,7 +566,7 @@ main() {
     step4_configure_env
     step5_install_openclaw
     step6_verify
-    step7_autostart
+    step7_init_and_autostart
     summary
 }
 
