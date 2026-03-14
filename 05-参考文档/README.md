@@ -34,6 +34,7 @@ OpenClaw 快速参考和常用资源。
 
 ### 社区资源
 - 🌟 [Awesome OpenClaw](https://github.com/openclaw/awesome-openclaw)
+- 📚 [Awesome Skills 精选列表](./Awesome-Skills精选列表.md) - 5,400+ 技能集合
 - 🤝 [社区贡献](https://github.com/openclaw/openclaw/contributing)
 - 🐛 [问题追踪](https://github.com/openclaw/openclaw/issues)
 
