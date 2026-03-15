@@ -211,7 +211,7 @@ echo   npm config  : %USERPROFILE%\.npmrc
 echo   Log file    : %LOG%
 echo.
 echo   Next steps:
-echo     openclaw init             - Initialize configuration
+echo     openclaw setup            - Run setup wizard
 echo     openclaw gateway start    - Start the Gateway
 echo     openclaw gateway status   - Check Gateway status
 echo     openclaw --help           - Show all commands
@@ -222,23 +222,23 @@ echo.
 >> "%LOG%" echo Installation Complete: %DATE% %TIME%
 >> "%LOG%" echo OpenClaw: !OC_VERSION!
 
-set /p "DO_INIT=Initialize OpenClaw now? [Y/N]: "
+set /p "DO_INIT=Run OpenClaw setup wizard now? [Y/N]: "
 if /i "!DO_INIT!"=="Y" (
     echo.
-    call :Info "Running: openclaw init"
-    openclaw init
+    call :Info "Running: openclaw setup"
+    call openclaw setup
     if not errorlevel 1 (
-        call :Ok "Initialization complete"
+        call :Ok "Setup complete"
         echo.
         set /p "DO_START=Start Gateway now? [Y/N]: "
         if /i "!DO_START!"=="Y" (
             call :Info "Starting Gateway in background..."
             start /min "" openclaw gateway start
             timeout /t 2 /nobreak >nul
-            openclaw gateway status
+            call openclaw gateway status
         )
     ) else (
-        call :Warn "Init failed - run manually: openclaw init"
+        call :Warn "Setup failed - run manually: openclaw setup"
     )
 )
 

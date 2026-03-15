@@ -1,0 +1,47 @@
+{
+  "$schema": "./openclaw-install.schema.json",
+  "version": "1.0.0",
+  "lastUpdated": "2026-03-15",
+  "openclaw": {
+    "version": "2026.3.13",
+    "package": "openclaw",
+    "registry": "https://registry.npmmirror.com"
+  },
+  "nodejs": {
+    "targetMajor": 22,
+    "targetVersion": "22.22.1",
+    "lts": true
+  },
+  "platforms": {
+    "windows": {
+      "installCommand": "npm install -g openclaw@{version} --registry {registry}",
+      "updateCommand": "npm install -g openclaw@{version} --registry {registry} --force",
+      "preferPnpm": true,
+      "pnpmCommand": "pnpm install -g openclaw@{version} --force"
+    },
+    "macos": {
+      "installCommand": "npm install -g openclaw@{version} --registry {registry}",
+      "updateCommand": "npm install -g openclaw@{version} --registry {registry} --force",
+      "preferPnpm": true,
+      "pnpmCommand": "pnpm install -g openclaw@{version} --force"
+    },
+    "linux": {
+      "installCommand": "npm install -g openclaw@{version} --registry {registry}",
+      "updateCommand": "npm install -g openclaw@{version} --registry {registry} --force",
+      "preferPnpm": true,
+      "pnpmCommand": "pnpm install -g openclaw@{version} --force"
+    }
+  },
+  "mirrors": {
+    "npm": [
+      "https://registry.npmmirror.com",
+      "https://mirrors.cloud.tencent.com/npm/",
+      "https://mirrors.huaweicloud.com/repository/npm/"
+    ],
+    "nodejs": [
+      "https://npmmirror.com/mirrors/node",
+      "https://mirrors.cloud.tencent.com/nodejs-release/",
+      "https://mirrors.huaweicloud.com/nodejs/"
+    ]
+  }
+}

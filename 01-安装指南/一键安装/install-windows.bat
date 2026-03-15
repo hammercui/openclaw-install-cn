@@ -15,6 +15,7 @@ chcp 437 >nul 2>nul
 set "VERSION=3.2.0"
 set "LOG=%TEMP%\openclaw-install.log"
 set "SCRIPT_DIR=%~dp0"
+set "OPENCLAW_CONFIG_FILE=%SCRIPT_DIR%openclaw-install.json"
 
 :: Init log
 > "%LOG%" echo OpenClaw Windows Installer v%VERSION%

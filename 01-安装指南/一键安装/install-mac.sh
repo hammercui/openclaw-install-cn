@@ -15,6 +15,79 @@ LOG="/tmp/openclaw-install-mac.log"
 NVM_DIR="$HOME/.nvm"
 NVM_GITEE="https://gitee.com/mirrors/nvm.git"
 
+# ============================================================
+#  Read configuration from JSON file
+# ============================================================
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+CONFIG_FILE="${SCRIPT_DIR}/openclaw-install.json"
+OPENCLAW_VERSION="latest"
+OPENCLAW_PACKAGE="openclaw"
+OPENCLAW_CONFIG_REGISTRY="https://registry.npmmirror.com"
+OPENCLAW_INSTALL_CMD_TEMPLATE='npm install -g {package}@{version} --registry {registry}'
+OPENCLAW_UPDATE_CMD_TEMPLATE='npm install -g {package}@{version} --registry {registry} --force'
+OPENCLAW_PNPM_CMD_TEMPLATE='pnpm install -g {package}@{version} --force'
+
+_json_get_openclaw_value() {
+    local key="$1"
+    awk -v k="\"${key}\"" '
+        /"openclaw"[[:space:]]*:[[:space:]]*\{/ { in_openclaw=1; next }
+        in_openclaw && /^[[:space:]]*}/ { in_openclaw=0 }
+        in_openclaw && index($0, k) {
+            if (match($0, /:[[:space:]]*"([^"]+)"/, m)) { print m[1]; exit }
+            if (match($0, /:[[:space:]]*(true|false)/, m)) { print m[1]; exit }
+            if (match($0, /:[[:space:]]*([0-9]+)/, m)) { print m[1]; exit }
+        }
+    ' "$CONFIG_FILE"
+}
+
+_json_get_platform_value() {
+    local platform="$1"
+    local key="$2"
+    awk -v p="\"${platform}\"" -v k="\"${key}\"" '
+        $0 ~ p"[[:space:]]*:[[:space:]]*\\{" { in_platform=1; next }
+        in_platform && /^[[:space:]]*}/ { in_platform=0 }
+        in_platform && index($0, k) {
+            if (match($0, /:[[:space:]]*"([^"]+)"/, m)) { print m[1]; exit }
+            if (match($0, /:[[:space:]]*(true|false)/, m)) { print m[1]; exit }
+            if (match($0, /:[[:space:]]*([0-9]+)/, m)) { print m[1]; exit }
+        }
+    ' "$CONFIG_FILE"
+}
+
+render_openclaw_command() {
+    local cmd_template="$1"
+    local runtime_registry="${BEST_NPM_MIRROR:-$OPENCLAW_CONFIG_REGISTRY}"
+    local cmd="$cmd_template"
+
+    cmd="${cmd//\{version\}/$OPENCLAW_VERSION}"
+    cmd="${cmd//\{package\}/$OPENCLAW_PACKAGE}"
+    cmd="${cmd//\{registry\}/$runtime_registry}"
+
+    echo "$cmd"
+}
+
+read_config() {
+    [[ -f "$CONFIG_FILE" ]] || {
+        warn "未找到配置文件，使用默认安装命令: ${CONFIG_FILE}"
+        return 0
+    }
+
+    local v pkg reg install_cmd update_cmd pnpm_cmd
+    v="$(_json_get_openclaw_value version || true)"
+    pkg="$(_json_get_openclaw_value package || true)"
+    reg="$(_json_get_openclaw_value registry || true)"
+    install_cmd="$(_json_get_platform_value macos installCommand || true)"
+    update_cmd="$(_json_get_platform_value macos updateCommand || true)"
+    pnpm_cmd="$(_json_get_platform_value macos pnpmCommand || true)"
+
+    [[ -n "$v" ]] && OPENCLAW_VERSION="$v"
+    [[ -n "$pkg" ]] && OPENCLAW_PACKAGE="$pkg"
+    [[ -n "$reg" ]] && OPENCLAW_CONFIG_REGISTRY="$reg"
+    [[ -n "$install_cmd" ]] && OPENCLAW_INSTALL_CMD_TEMPLATE="$install_cmd"
+    [[ -n "$update_cmd" ]] && OPENCLAW_UPDATE_CMD_TEMPLATE="$update_cmd"
+    [[ -n "$pnpm_cmd" ]] && OPENCLAW_PNPM_CMD_TEMPLATE="$pnpm_cmd"
+}
+
 # Colors
 RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'
 CYAN='\033[0;36m'; GRAY='\033[0;90m'; NC='\033[0m'
@@ -290,6 +363,13 @@ step4_configure_env() {
 step5_install_openclaw() {
     step 5 "安装 OpenClaw"
 
+    local install_cmd update_cmd pnpm_cmd
+    install_cmd="$(render_openclaw_command "$OPENCLAW_INSTALL_CMD_TEMPLATE")"
+    update_cmd="$(render_openclaw_command "$OPENCLAW_UPDATE_CMD_TEMPLATE")"
+    pnpm_cmd="$(render_openclaw_command "$OPENCLAW_PNPM_CMD_TEMPLATE")"
+
+    info "OpenClaw 包名: ${OPENCLAW_PACKAGE}"
+    info "OpenClaw 版本: ${OPENCLAW_VERSION}"
     info "当前 npm 镜像: ${BEST_NPM_MIRROR}"
 
     # 安装 pnpm（处理 git/二进制依赖更可靠）
@@ -309,11 +389,11 @@ step5_install_openclaw() {
     if command -v pnpm &>/dev/null; then
         if command -v openclaw &>/dev/null; then
             info "OpenClaw 已安装，升级中（pnpm）..."
-            pnpm update -g openclaw >> "$LOG" 2>&1 || true
+            eval "$pnpm_cmd" >> "$LOG" 2>&1 || true
             return 0
         fi
-        info "正在执行: pnpm install -g openclaw@latest --force"
-        if pnpm install -g openclaw@latest --force 2>&1 | tee -a "$LOG"; then
+        info "正在执行: ${pnpm_cmd}"
+        if eval "$pnpm_cmd" 2>&1 | tee -a "$LOG"; then
             ok "OpenClaw 安装成功（pnpm）"
             return 0
         fi
@@ -323,11 +403,11 @@ step5_install_openclaw() {
     # npm 备用
     if command -v openclaw &>/dev/null; then
         info "OpenClaw 已安装，升级中（npm）..."
-        npm update -g openclaw --registry "${BEST_NPM_MIRROR}" --loglevel http 2>&1 | tee -a "$LOG" || true
+        eval "$update_cmd" 2>&1 | tee -a "$LOG" || true
         return 0
     fi
-    info "正在执行: npm install -g openclaw@latest（进度显示如下）"
-    npm install -g openclaw@latest --registry "${BEST_NPM_MIRROR}" --loglevel http 2>&1 | tee -a "$LOG" || {
+    info "正在执行: ${install_cmd}（进度显示如下）"
+    eval "$install_cmd" 2>&1 | tee -a "$LOG" || {
         err "OpenClaw 安装失败"
         err "  1. 检查 git: command -v git"
         err "  2. 测试镜像: curl ${BEST_NPM_MIRROR}"
@@ -409,7 +489,7 @@ step6_verify() {
             npm_global_dir="$(npm prefix -g 2>/dev/null)/lib/node_modules/openclaw"
             if [[ -d "$npm_global_dir" ]]; then
                 warn "包已安装在 ${npm_global_dir}，但 bin 链接可能缺失"
-                info "修复方式: npm install -g openclaw@latest --force"
+                info "修复方式: $(render_openclaw_command "$OPENCLAW_UPDATE_CMD_TEMPLATE")"
             fi
             echo
             err "请尝试: source ${SHELL_RC} && openclaw --version"
@@ -564,6 +644,7 @@ main() {
     step2_check_nodejs
     step3_configure_npm
     step4_configure_env
+    read_config
     step5_install_openclaw
     step6_verify
     step7_init_and_autostart
