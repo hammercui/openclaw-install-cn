@@ -10,7 +10,7 @@ set -euo pipefail
 VERSION="2.1.0"
 NODE_TARGET="22"
 NODE_MIN_MAJOR="22"
-NODE_MIN_MINOR="12"
+NODE_MIN_MINOR="22"
 LOG="/tmp/openclaw-install-mac.log"
 NVM_DIR="$HOME/.nvm"
 NVM_GITEE="https://gitee.com/mirrors/nvm.git"
@@ -195,11 +195,11 @@ step2_check_nodejs() {
     nvm use "${NODE_TARGET}" >> "$LOG" 2>&1
     nvm alias default "${NODE_TARGET}" >> "$LOG" 2>&1
 
-    # 版本仍不够时固定安装 22.12.0
+    # 版本仍不够时固定安装 22.22.1
     if ! check_node_ver; then
-        warn "nvm 安装了 $(node -v)，版本仍不足，固定安装 22.12.0..."
-        nvm install 22.12.0 >> "$LOG" 2>&1
-        nvm use 22.12.0 >> "$LOG" 2>&1
+        warn "nvm 安装了 $(node -v)，版本仍不足，固定安装 22.22.1..."
+        nvm install 22.22.1 >> "$LOG" 2>&1
+        nvm use 22.22.1 >> "$LOG" 2>&1
     fi
 
     NODE_VER=$(node -v)

@@ -12,7 +12,7 @@ if not defined BEST_NPM_MIRROR set "BEST_NPM_MIRROR=https://registry.npmmirror.c
 if not defined NPM_PREFIX set "NPM_PREFIX=%APPDATA%\npm"
 
 set "NODE_TARGET=22"
-set "NODE_MSI_VER=22.12.0"
+set "NODE_MSI_VER=22.22.1"
 
 call :Main
 exit /b !ERRORLEVEL!
