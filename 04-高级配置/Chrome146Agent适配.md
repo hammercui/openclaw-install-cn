@@ -10,6 +10,20 @@ Server running at: `127.0.0.1:9222`
 
 chrome://inspect/#remote-debugging
 
+
+
+然后
+
+打开 chrome://flags/[#enable](https://x.com/hashtag/enable?src=hashtag_click)-webmcp-testing 设为 Enabled
+
+
+
+安装 agent-browser skill 或 chrome-devtools-mcp，都支持自动连接到已有的Chrome实例
+
+
+
+
+
 ### 方案一：用 OpenClaw 内置的 `user` 模式直连 Chrome（推荐）
 
 很多人不知道，OpenClaw 其实已经内置了对 Chrome DevTools MCP 的支持。它有一个叫 `user` 的内置 profile，底层走的就是 Chrome DevTools MCP 的 `--autoConnect` 流程，能直接连上你正在用的 Chrome，带着所有登录状态。
