@@ -19,7 +19,7 @@ bash install-linux.sh
 | 步骤 | 内容 |
 |------|------|
 | 1 | 测试镜像速度，选择最快的 npm / Node.js 镜像源 |
-| 2 | 检查 / 安装 Node.js 22.12+（通过 nvm，从 Gitee 镜像） |
+| 2 | 检查 / 安装 Node.js 22.22.1+（通过 nvm，从 Gitee 镜像） |
 | 3 | 配置 npm（写入 `~/.npmrc`） |
 | 4 | 配置 Shell 环境变量（写入 `~/.bashrc` 或 `~/.zshrc`） |
 | 5 | 安装 OpenClaw（pnpm 优先，npm 备用） |

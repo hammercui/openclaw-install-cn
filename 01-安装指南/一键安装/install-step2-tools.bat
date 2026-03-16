@@ -12,7 +12,7 @@ if not defined BEST_NPM_MIRROR set "BEST_NPM_MIRROR=https://registry.npmmirror.c
 if not defined NPM_PREFIX set "NPM_PREFIX=%APPDATA%\npm"
 
 set "NODE_TARGET=22"
-set "NODE_MSI_VER=22.12.0"
+set "NODE_MSI_VER=22.22.1"
 
 call :Main
 exit /b !ERRORLEVEL!
@@ -124,16 +124,16 @@ if not errorlevel 1 (
         set "NODE_MINOR=%%b"
     )
     
-    :: Check if version >= 22.12
+    :: Check if version >= 22.22
     set "VERSION_OK=0"
     if !NODE_MAJOR! GTR 22 set "VERSION_OK=1"
-    if !NODE_MAJOR! EQU 22 if !NODE_MINOR! GEQ 12 set "VERSION_OK=1"
-    
+    if !NODE_MAJOR! EQU 22 if !NODE_MINOR! GEQ 22 set "VERSION_OK=1"
+
     if "!VERSION_OK!"=="1" (
-        call :Ok "Version check passed (requires v22.12+)"
+        call :Ok "Version check passed (requires v22.22.1+)"
         goto :InstallPnpm
     ) else (
-        call :Warn "Node.js !NODE_VER! is too old (requires v22.12+)"
+        call :Warn "Node.js !NODE_VER! is too old (requires v22.22.1+)"
         call :Info "Will upgrade to Node.js %NODE_MSI_VER%..."
     )
 )
@@ -242,7 +242,7 @@ if not errorlevel 1 (
 )
 
 call :Info "Installing pnpm..."
-npm install -g pnpm --registry %BEST_NPM_MIRROR%
+call npm install -g pnpm --registry %BEST_NPM_MIRROR%
 if errorlevel 1 (
     call :Warn "pnpm install failed - will use npm for OpenClaw"
     goto :Done
@@ -250,7 +250,7 @@ if errorlevel 1 (
 call :Ok "pnpm installed"
 
 call :Info "Configuring pnpm environment (pnpm setup)..."
-pnpm setup >> "%LOG%" 2>&1
+call pnpm setup >> "%LOG%" 2>&1
 if not errorlevel 1 (
     for /f "skip=2 tokens=2*" %%a in ('reg query "HKCU\Environment" /v PNPM_HOME 2^>nul') do set "PNPM_HOME=%%b"
     if defined PNPM_HOME (

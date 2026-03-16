@@ -27,7 +27,7 @@ bash install-mac.sh
 | 步骤 | 内容 |
 |------|------|
 | 1 | 测试镜像速度，选择最快的 npm / Node.js 镜像源 |
-| 2 | 检查 / 安装 Node.js 22.12+（通过 nvm，从 Gitee 镜像） |
+| 2 | 检查 / 安装 Node.js 22.22.1+（通过 nvm，从 Gitee 镜像） |
 | 3 | 配置 npm 和 git（写入 `~/.npmrc`，git 强制使用 HTTPS） |
 | 4 | 配置 Shell 环境变量（写入 `~/.zshrc` 或 `~/.bashrc`） |
 | 5 | 安装 OpenClaw（pnpm 优先，npm 备用） |

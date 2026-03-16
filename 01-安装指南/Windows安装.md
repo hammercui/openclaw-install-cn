@@ -60,7 +60,7 @@ set PATH=%PATH%;%APPDATA%\npm
 
 ```cmd
 # 手动下载并安装 Node.js 22
-msiexec /i node-v22.12.0-x64.msi
+msiexec /i node-v22.22.1-x64.msi
 ```
 
 **npm install 失败**
