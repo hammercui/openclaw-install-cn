@@ -9,6 +9,8 @@ if not defined LOG set "LOG=%TEMP%\openclaw-install.log"
 if not defined NPM_PREFIX set "NPM_PREFIX=%APPDATA%\npm"
 if not defined BEST_NPM_MIRROR set "BEST_NPM_MIRROR=https://registry.npmmirror.com"
 if not defined BEST_NPM_NAME set "BEST_NPM_NAME=Taobao"
+if not defined OPENCLAW_ENABLE_AUTOSTART set "OPENCLAW_ENABLE_AUTOSTART=N"
+if not defined OPENCLAW_RUN_SETUP set "OPENCLAW_RUN_SETUP=N"
 
 call :Main
 exit /b !ERRORLEVEL!
@@ -55,6 +57,10 @@ call :Info "Step 4.1: Verifying OpenClaw installation..."
 
 :: 1. npm global prefix
 for /f "tokens=*" %%p in ('npm config get prefix 2^>nul') do set "NPM_PREFIX=%%p"
+for /f "tokens=*" %%r in ('npm config get registry 2^>nul') do set "BEST_NPM_MIRROR=%%r"
+if /i "!BEST_NPM_MIRROR!"=="https://registry.npmmirror.com" set "BEST_NPM_NAME=Taobao"
+if /i "!BEST_NPM_MIRROR!"=="https://mirrors.cloud.tencent.com/npm/" set "BEST_NPM_NAME=Tencent"
+if /i "!BEST_NPM_MIRROR!"=="https://mirrors.huaweicloud.com/repository/npm/" set "BEST_NPM_NAME=Huawei"
 call :Info "npm prefix  : !NPM_PREFIX!"
 
 :: 2. pnpm global bin
@@ -75,10 +81,7 @@ set "REG_USER_PATH="
 for /f "skip=2 tokens=2*" %%a in ('reg query "HKCU\Environment" /v PATH 2^>nul') do set "REG_USER_PATH=%%b"
 
 :: 5. Rebuild PATH
-set "PATH=!PATH!;!REG_USER_PATH!"
-set "PATH=!PATH!;!NPM_PREFIX!"
-set "PATH=!PATH!;!APPDATA!\npm"
-set "PATH=!PATH!;C:\Program Files\nodejs;!LOCALAPPDATA!\Programs\nodejs"
+set "PATH=!LOCALAPPDATA!\Programs\nodejs;C:\Program Files\nodejs;!NPM_PREFIX!;!APPDATA!\npm;!PATH!;!REG_USER_PATH!"
 if defined PNPM_BIN set "PATH=!PATH!;!PNPM_BIN!"
 if defined PNPM_HOME set "PATH=!PATH!;!PNPM_HOME!"
 
@@ -134,7 +137,13 @@ if errorlevel 1 goto :NotFound
 
 :: Print version
 for /f "tokens=*" %%v in ('openclaw --version 2^>nul') do set "OC_VERSION=%%v"
-for /f "tokens=*" %%v in ('node -v 2^>nul') do set "NODE_VER=%%v"
+if exist "!LOCALAPPDATA!\Programs\nodejs\node.exe" (
+    for /f "tokens=*" %%v in ('"!LOCALAPPDATA!\Programs\nodejs\node.exe" -v 2^>nul') do set "NODE_VER=%%v"
+) else if exist "C:\Program Files\nodejs\node.exe" (
+    for /f "tokens=*" %%v in ('"C:\Program Files\nodejs\node.exe" -v 2^>nul') do set "NODE_VER=%%v"
+) else (
+    for /f "tokens=*" %%v in ('node -v 2^>nul') do set "NODE_VER=%%v"
+)
 call :Ok "OpenClaw !OC_VERSION! verified"
 call :Ok "Node.js !NODE_VER!"
 goto :AutoStart
@@ -173,7 +182,7 @@ exit /b 1
 echo.
 call :Info "Step 4.2: Auto-start configuration (optional)"
 
-set /p "DO_AUTOSTART=Configure OpenClaw Gateway to auto-start at login? [Y/N]: "
+set "DO_AUTOSTART=%OPENCLAW_ENABLE_AUTOSTART%"
 if /i not "!DO_AUTOSTART!"=="Y" (
     call :Info "Skipping auto-start"
     goto :Summary
@@ -222,7 +231,7 @@ echo.
 >> "%LOG%" echo Installation Complete: %DATE% %TIME%
 >> "%LOG%" echo OpenClaw: !OC_VERSION!
 
-set /p "DO_INIT=Run OpenClaw setup wizard now? [Y/N]: "
+set "DO_INIT=%OPENCLAW_RUN_SETUP%"
 if /i "!DO_INIT!"=="Y" (
     echo.
     call :Info "Running: openclaw setup"
@@ -230,11 +239,11 @@ if /i "!DO_INIT!"=="Y" (
     if not errorlevel 1 (
         call :Ok "Setup complete"
         echo.
-        set /p "DO_START=Start Gateway now? [Y/N]: "
+        set "DO_START=Y"
         if /i "!DO_START!"=="Y" (
             call :Info "Starting Gateway in background..."
             start /min "" openclaw gateway start
-            timeout /t 2 /nobreak >nul
+            ping -n 3 127.0.0.1 >nul
             call openclaw gateway status
         )
     ) else (

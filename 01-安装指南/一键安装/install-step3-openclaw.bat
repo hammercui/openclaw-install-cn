@@ -7,7 +7,6 @@ setlocal enabledelayedexpansion
 :: ============================================================
 
 if not defined LOG set "LOG=%TEMP%\openclaw-install.log"
-if not defined BEST_NPM_MIRROR set "BEST_NPM_MIRROR=https://registry.npmmirror.com"
 if not defined SCRIPT_DIR set "SCRIPT_DIR=%~dp0"
 
 :: Read OpenClaw install config
@@ -22,8 +21,11 @@ set "OPENCLAW_CONFIG_REGISTRY=https://registry.npmmirror.com"
 set "WIN_INSTALL_CMD=npm install -g {package}@{version} --registry {registry}"
 set "WIN_UPDATE_CMD=npm install -g {package}@{version} --registry {registry} --force"
 set "WIN_PNPM_CMD=pnpm install -g {package}@{version} --force"
+set "PNPM_READY=0"
 
+call :DetectNpmMirror
 call :ReadConfig
+call :DetectPnpm
 
 call :Main
 exit /b !ERRORLEVEL!
@@ -128,6 +130,33 @@ set "_cmd=!_cmd:{registry}=%OPENCLAW_REGISTRY%!"
 set "%~2=!_cmd!"
 goto :eof
 
+:DetectPnpm
+set "PNPM_READY=0"
+set "PNPM_GLOBAL_BIN="
+set "PNPM_HOME="
+where pnpm >nul 2>nul
+if errorlevel 1 goto :eof
+
+for /f "skip=2 tokens=2*" %%a in ('reg query "HKCU\Environment" /v PNPM_HOME 2^>nul') do set "PNPM_HOME=%%b"
+if defined PNPM_HOME if exist "!PNPM_HOME!" (
+    set "PATH=!PNPM_HOME!;!PATH!"
+    set "PNPM_READY=1"
+    goto :eof
+)
+
+for /f "tokens=*" %%p in ('pnpm bin -g 2^>nul') do set "PNPM_GLOBAL_BIN=%%p"
+if defined PNPM_GLOBAL_BIN if exist "!PNPM_GLOBAL_BIN!" (
+    set "PATH=!PNPM_GLOBAL_BIN!;!PATH!"
+    set "PNPM_READY=1"
+)
+goto :eof
+
+:DetectNpmMirror
+if defined BEST_NPM_MIRROR goto :eof
+for /f "tokens=*" %%r in ('npm config get registry 2^>nul') do set "BEST_NPM_MIRROR=%%r"
+if not defined BEST_NPM_MIRROR set "BEST_NPM_MIRROR=https://registry.npmmirror.com"
+goto :eof
+
 :: ============================================================
 ::  Main Flow
 :: ============================================================
@@ -139,35 +168,60 @@ call :Info "OpenClaw version: !OPENCLAW_VERSION!"
 call :Info "Package: !OPENCLAW_PACKAGE!"
 call :Info "Registry: !OPENCLAW_REGISTRY!"
 
-    :: ---- Check if already installed ----
-    where openclaw >nul 2>nul
-    if not errorlevel 1 (
-        call :Info "OpenClaw already installed - updating..."
-        echo.
+:: ---- Check if already installed ----
+where openclaw >nul 2>nul
+if not errorlevel 1 (
+    call :Info "OpenClaw already installed - updating..."
+    echo.
 
-        :: Choose package manager: prefer pnpm if available, otherwise npm
-        set "UPDATE_PM=npm"
+    :: Choose package manager: prefer pnpm if available and usable, otherwise npm
+    set "UPDATE_PM=npm"
+    if "!PNPM_READY!"=="1" (
+        set "UPDATE_PM=pnpm"
+    ) else (
         where pnpm >nul 2>nul
         if not errorlevel 1 (
-            set "UPDATE_PM=pnpm"
+            call :Warn "pnpm global bin not ready - falling back to npm update"
         )
+    )
 
-        echo ============================================================
-        echo   Updating OpenClaw via !UPDATE_PM! (progress shown below)
-        echo ============================================================
-        echo.
-        if "!UPDATE_PM!"=="pnpm" (
-            cmd /c "!RENDERED_PNPM_CMD!" 2>&1
-        ) else (
+    echo ============================================================
+    echo   Updating OpenClaw via !UPDATE_PM! ^(progress shown below^)
+    echo ============================================================
+    echo.
+    if "!UPDATE_PM!"=="pnpm" (
+        cmd /c "!RENDERED_PNPM_CMD!" 2>&1
+        if errorlevel 1 (
+            echo.
+            call :Warn "pnpm update failed - trying npm as fallback..."
             cmd /c "!RENDERED_UPDATE_CMD!" 2>&1
+            if errorlevel 1 (
+                echo.
+                call :Err "OpenClaw update failed via both pnpm and npm"
+                exit /b 1
+            )
+            echo.
+            call :Ok "OpenClaw updated via npm"
+            goto :Done
         )
         echo.
+        call :Ok "OpenClaw updated via pnpm"
         goto :Done
     )
 
+    cmd /c "!RENDERED_UPDATE_CMD!" 2>&1
+    if errorlevel 1 (
+        echo.
+        call :Err "OpenClaw update failed via both pnpm and npm"
+        exit /b 1
+    )
+    echo.
+    call :Ok "OpenClaw updated via npm"
+    goto :Done
+)
+
 :: ---- Fresh install: prefer pnpm, fallback to npm ----
-where pnpm >nul 2>nul
-if not errorlevel 1 (
+if "!PNPM_READY!"=="1" (
     echo.
     echo ============================================================
     echo   Installing OpenClaw via pnpm - this may take 1-3 minutes
@@ -182,6 +236,10 @@ if not errorlevel 1 (
     )
     echo.
     call :Warn "pnpm install failed - trying npm as fallback..."
+)
+if "!PNPM_READY!"=="0" (
+    where pnpm >nul 2>nul
+    if not errorlevel 1 call :Warn "pnpm global bin not ready - using npm directly"
 )
 
 :: ---- Fallback: npm ----

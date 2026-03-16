@@ -34,7 +34,7 @@ echo   Optimized for China mainland network
 echo ============================================================
 echo.
 echo  This installer will:
-echo    - Test and configure fastest mirror
+echo    - Test all mirrors and choose the best available one
 echo    - Install Git, Node.js, pnpm
 echo    - Install OpenClaw CLI
 echo    - Configure auto-start
@@ -69,7 +69,6 @@ call "%SCRIPT_DIR%install-step1-mirror.bat"
 if errorlevel 1 (
     echo.
     echo [ERROR] Stage 1 failed - see log: %LOG%
-    pause
     exit /b 1
 )
 
@@ -84,7 +83,6 @@ call "%SCRIPT_DIR%install-step2-tools.bat"
 if errorlevel 1 (
     echo.
     echo [ERROR] Stage 2 failed - see log: %LOG%
-    pause
     exit /b 1
 )
 
@@ -99,7 +97,6 @@ call "%SCRIPT_DIR%install-step3-openclaw.bat"
 if errorlevel 1 (
     echo.
     echo [ERROR] Stage 3 failed - see log: %LOG%
-    pause
     exit /b 1
 )
 
@@ -145,7 +142,6 @@ call "%SCRIPT_DIR%install-step4-verify.bat"
 if errorlevel 1 (
     echo.
     echo [ERROR] Stage 4 failed - see log: %LOG%
-    pause
     exit /b 1
 )
 
@@ -160,6 +156,7 @@ echo.
 echo   All stages completed successfully.
 echo   Log saved to: %LOG%
 echo.
-pause
-endlocal
+endlocal & (
+    set "PATH=%PATH%"
+)
 exit /b 0

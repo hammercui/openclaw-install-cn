@@ -6,6 +6,7 @@ setlocal enabledelayedexpansion
 :: ============================================================
 
 if not defined LOG set "LOG=%TEMP%\openclaw-install.log"
+if not defined SCRIPT_DIR set "SCRIPT_DIR=%~dp0"
 
 call :Main
 exit /b !ERRORLEVEL!
@@ -37,6 +38,140 @@ echo [ERROR ] %~1
 >> "%LOG%" echo [ERROR ] %~1
 goto :eof
 
+:StoreMirror
+set "MIRROR_VALUE=%~2"
+set "MIRROR_VALUE=!MIRROR_VALUE:"=!"
+if "!MIRROR_VALUE:~-1!"=="," set "MIRROR_VALUE=!MIRROR_VALUE:~0,-1!"
+if /i "%~1"=="NODE" if not "!MIRROR_VALUE:~-1!"=="/" set "MIRROR_VALUE=!MIRROR_VALUE!/"
+
+set "MIRROR_LABEL=Custom"
+if /i not "!MIRROR_VALUE:npmmirror.com=!"=="!MIRROR_VALUE!" set "MIRROR_LABEL=Taobao"
+if /i not "!MIRROR_VALUE:registry.npmmirror.com=!"=="!MIRROR_VALUE!" set "MIRROR_LABEL=Taobao"
+if /i not "!MIRROR_VALUE:cloud.tencent.com=!"=="!MIRROR_VALUE!" set "MIRROR_LABEL=Tencent"
+if /i not "!MIRROR_VALUE:huaweicloud.com=!"=="!MIRROR_VALUE!" set "MIRROR_LABEL=Huawei"
+
+if /i "%~1"=="NPM" (
+    set /a NPM_MIRROR_COUNT+=1
+    set "NPM_MIRROR_!NPM_MIRROR_COUNT!=!MIRROR_VALUE!"
+    set "NPM_MIRROR_NAME_!NPM_MIRROR_COUNT!=!MIRROR_LABEL!"
+) else (
+    set /a NODE_MIRROR_COUNT+=1
+    set "NODE_MIRROR_!NODE_MIRROR_COUNT!=!MIRROR_VALUE!"
+    set "NODE_MIRROR_NAME_!NODE_MIRROR_COUNT!=!MIRROR_LABEL!"
+)
+goto :eof
+
+:SetDefaultMirrors
+set "NPM_MIRROR_COUNT=3"
+set "NPM_MIRROR_1=https://registry.npmmirror.com"
+set "NPM_MIRROR_NAME_1=Taobao"
+set "NPM_MIRROR_2=https://mirrors.cloud.tencent.com/npm/"
+set "NPM_MIRROR_NAME_2=Tencent"
+set "NPM_MIRROR_3=https://mirrors.huaweicloud.com/repository/npm/"
+set "NPM_MIRROR_NAME_3=Huawei"
+
+set "NODE_MIRROR_COUNT=3"
+set "NODE_MIRROR_1=https://npmmirror.com/mirrors/node/"
+set "NODE_MIRROR_NAME_1=Taobao"
+set "NODE_MIRROR_2=https://mirrors.cloud.tencent.com/nodejs-release/"
+set "NODE_MIRROR_NAME_2=Tencent"
+set "NODE_MIRROR_3=https://mirrors.huaweicloud.com/nodejs/"
+set "NODE_MIRROR_NAME_3=Huawei"
+goto :eof
+
+:ReadMirrorConfig
+set "CONFIG_FILE=%SCRIPT_DIR%openclaw-install.json"
+if defined OPENCLAW_CONFIG_FILE set "CONFIG_FILE=%OPENCLAW_CONFIG_FILE%"
+if not exist "%CONFIG_FILE%" (
+    call :Warn "Mirror config not found, using defaults: %CONFIG_FILE%"
+    call :SetDefaultMirrors
+    goto :eof
+)
+
+set "NPM_MIRROR_COUNT=0"
+set "NODE_MIRROR_COUNT=0"
+set "IN_MIRRORS=0"
+set "IN_NPM=0"
+set "IN_NODE=0"
+
+for /f "usebackq delims=" %%L in ("%CONFIG_FILE%") do (
+    set "LINE=%%L"
+    set "LINE_TRIM=!LINE: =!"
+    set "LINE_KEY=!LINE_TRIM:"=!"
+
+    if /i "!LINE_KEY!"=="mirrors:{" set "IN_MIRRORS=1" & set "IN_NPM=0" & set "IN_NODE=0"
+
+    if "!IN_MIRRORS!"=="1" (
+        if /i "!LINE_KEY!"=="npm:[" set "IN_NPM=1" & set "IN_NODE=0"
+        if /i "!LINE_KEY!"=="nodejs:[" set "IN_NODE=1" & set "IN_NPM=0"
+
+        if "!IN_NPM!"=="1" (
+            if /i not "!LINE_TRIM:https://=!"=="!LINE_TRIM!" call :StoreMirror NPM "!LINE_TRIM!"
+            if /i "!LINE_TRIM!"=="]," set "IN_NPM=0"
+            if /i "!LINE_TRIM!"=="]" set "IN_NPM=0"
+        )
+
+        if "!IN_NODE!"=="1" (
+            if /i not "!LINE_TRIM:https://=!"=="!LINE_TRIM!" call :StoreMirror NODE "!LINE_TRIM!"
+            if /i "!LINE_TRIM!"=="]," set "IN_NODE=0"
+            if /i "!LINE_TRIM!"=="]" set "IN_NODE=0"
+        )
+    )
+)
+
+if "!NPM_MIRROR_COUNT!"=="0" (
+    call :Warn "No npm mirrors found in config - using defaults"
+    call :SetDefaultMirrors
+    goto :eof
+)
+
+if "!NODE_MIRROR_COUNT!"=="0" (
+    call :Warn "No Node.js mirrors found in config - using defaults"
+    call :SetDefaultMirrors
+)
+goto :eof
+
+:TestMirror
+set "TEST_URL=%~1"
+set "TEST_NAME=%~2"
+set "TEST_LABEL=%~3"
+set "TEST_OUT_VAR=%~4"
+set "TEST_STATUS_VAR=%~5"
+set "TEST_TIME_RAW="
+set "TEST_TIME_MS="
+
+for /f "delims=" %%T in ('curl -s -o nul -m 5 -w "%%{time_total}" "%TEST_URL%" 2^>nul') do set "TEST_TIME_RAW=%%T"
+if not defined TEST_TIME_RAW (
+    call :Warn "%TEST_NAME% %TEST_LABEL%: unavailable"
+    set "%TEST_STATUS_VAR%=0"
+    set "%TEST_OUT_VAR%=999999"
+    goto :eof
+)
+
+set "TEST_TIME_MS=%TEST_TIME_RAW:.=%"
+set "TEST_TIME_MS=%TEST_TIME_MS%000"
+set "TEST_TIME_MS=%TEST_TIME_MS:~0,4%"
+
+if not defined TEST_TIME_MS (
+    call :Warn "%TEST_NAME% %TEST_LABEL%: unavailable"
+    set "%TEST_STATUS_VAR%=0"
+    set "%TEST_OUT_VAR%=999999"
+    goto :eof
+)
+
+set /a TEST_TIME_MS=1%TEST_TIME_MS%-10000 >nul 2>&1
+if errorlevel 1 (
+    call :Warn "%TEST_NAME% %TEST_LABEL%: unavailable"
+    set "%TEST_STATUS_VAR%=0"
+    set "%TEST_OUT_VAR%=999999"
+    goto :eof
+)
+
+call :Ok "%TEST_NAME% %TEST_LABEL%: !TEST_TIME_MS!ms"
+set "%TEST_STATUS_VAR%=1"
+set "%TEST_OUT_VAR%=!TEST_TIME_MS!"
+goto :eof
+
 :: ============================================================
 ::  Main Flow
 :: ============================================================
@@ -44,90 +179,72 @@ goto :eof
 call :Info "Stage 1: Testing mirror speeds and configuring environment"
 echo.
 
-:: ============================================================
-::  Test mirror speeds (first success wins = fastest)
-:: ============================================================
-call :Info "Testing npm registry mirrors (first to respond wins)..."
+call :ReadMirrorConfig
 
-set "TAOBAO_NPM=https://registry.npmmirror.com"
-set "TENCENT_NPM=https://mirrors.cloud.tencent.com/npm/"
-set "HUAWEI_NPM=https://mirrors.huaweicloud.com/repository/npm/"
-
-set "TAOBAO_NODE=https://npmmirror.com/mirrors/node/"
-set "TENCENT_NODE=https://mirrors.cloud.tencent.com/nodejs-release/"
-set "HUAWEI_NODE=https://mirrors.huaweicloud.com/nodejs/"
+:: ============================================================
+::  Test mirror speeds (available first, then pick lowest latency)
+:: ============================================================
+call :Info "Testing npm registry mirrors (all candidates, lowest latency among available)..."
 
 :: Default values
-set "BEST_NPM_MIRROR=%TAOBAO_NPM%"
-set "BEST_NPM_NAME=Taobao"
-set "BEST_NODE_MIRROR=%TAOBAO_NODE%"
-set "BEST_NODE_NAME=Taobao"
+call set "BEST_NPM_MIRROR=%%NPM_MIRROR_1%%"
+call set "BEST_NPM_NAME=%%NPM_MIRROR_NAME_1%%"
+call set "BEST_NODE_MIRROR=%%NODE_MIRROR_1%%"
+call set "BEST_NODE_NAME=%%NODE_MIRROR_NAME_1%%"
+set "BEST_NPM_MS=999999"
+set "BEST_NODE_MS=999999"
+set "NPM_AVAILABLE_COUNT=0"
+set "NODE_AVAILABLE_COUNT=0"
 
-:: Test npm mirrors - first success wins (fastest response)
-curl -s -m 3 -o nul "%TAOBAO_NPM%" 2>nul
-if not errorlevel 1 (
-    set "BEST_NPM_MIRROR=%TAOBAO_NPM%"
-    set "BEST_NPM_NAME=Taobao"
-    call :Ok "Taobao npm mirror: OK (selected)"
-    goto :NpmMirrorDone
+:: Test npm mirrors - evaluate all candidates and pick the lowest latency among available
+for /l %%i in (1,1,!NPM_MIRROR_COUNT!) do (
+    call set "CUR_NPM_MIRROR=%%NPM_MIRROR_%%i%%"
+    call set "CUR_NPM_NAME=%%NPM_MIRROR_NAME_%%i%%"
+    call :TestMirror "!CUR_NPM_MIRROR!" "!CUR_NPM_NAME!" "npm mirror" CUR_NPM_MS CUR_NPM_OK
+    if "!CUR_NPM_OK!"=="1" (
+        set /a NPM_AVAILABLE_COUNT+=1
+        if !CUR_NPM_MS! LSS !BEST_NPM_MS! (
+            set "BEST_NPM_MIRROR=!CUR_NPM_MIRROR!"
+            set "BEST_NPM_NAME=!CUR_NPM_NAME!"
+            set "BEST_NPM_MS=!CUR_NPM_MS!"
+        )
+    )
 )
-call :Warn "Taobao npm mirror: timeout"
 
-curl -s -m 3 -o nul "%TENCENT_NPM%" 2>nul
-if not errorlevel 1 (
-    set "BEST_NPM_MIRROR=%TENCENT_NPM%"
-    set "BEST_NPM_NAME=Tencent"
-    call :Ok "Tencent npm mirror: OK (selected)"
-    goto :NpmMirrorDone
-)
-call :Warn "Tencent npm mirror: timeout"
-
-curl -s -m 3 -o nul "%HUAWEI_NPM%" 2>nul
-if not errorlevel 1 (
-    set "BEST_NPM_MIRROR=%HUAWEI_NPM%"
-    set "BEST_NPM_NAME=Huawei"
-    call :Ok "Huawei npm mirror: OK (selected)"
-    goto :NpmMirrorDone
-)
-call :Warn "Huawei npm mirror: timeout"
-call :Warn "All npm mirrors failed - using default: Taobao"
+if "!NPM_AVAILABLE_COUNT!"=="0" call :Warn "All npm mirrors failed - using default: !BEST_NPM_NAME!"
 
 :NpmMirrorDone
-call :Ok "Selected npm mirror: !BEST_NPM_NAME! (!BEST_NPM_MIRROR!)"
-
-:: Test Node.js download mirrors - first success wins
-call :Info "Testing Node.js download mirrors..."
-
-curl -s -m 3 -o nul "%TAOBAO_NODE%" 2>nul
-if not errorlevel 1 (
-    set "BEST_NODE_MIRROR=%TAOBAO_NODE%"
-    set "BEST_NODE_NAME=Taobao"
-    call :Ok "Taobao node mirror: OK (selected)"
-    goto :NodeMirrorDone
+if "!NPM_AVAILABLE_COUNT!"=="0" (
+    call :Ok "Selected npm mirror: !BEST_NPM_NAME! (!BEST_NPM_MIRROR!) [fallback]"
+) else (
+    call :Ok "Selected npm mirror: !BEST_NPM_NAME! (!BEST_NPM_MIRROR!, !BEST_NPM_MS!ms)"
 )
-call :Warn "Taobao node mirror: timeout"
 
-curl -s -m 3 -o nul "%TENCENT_NODE%" 2>nul
-if not errorlevel 1 (
-    set "BEST_NODE_MIRROR=%TENCENT_NODE%"
-    set "BEST_NODE_NAME=Tencent"
-    call :Ok "Tencent node mirror: OK (selected)"
-    goto :NodeMirrorDone
-)
-call :Warn "Tencent node mirror: timeout"
+:: Test Node.js download mirrors - evaluate all candidates and pick the lowest latency among available
+call :Info "Testing Node.js download mirrors (all candidates, lowest latency among available)..."
 
-curl -s -m 3 -o nul "%HUAWEI_NODE%" 2>nul
-if not errorlevel 1 (
-    set "BEST_NODE_MIRROR=%HUAWEI_NODE%"
-    set "BEST_NODE_NAME=Huawei"
-    call :Ok "Huawei node mirror: OK (selected)"
-    goto :NodeMirrorDone
+for /l %%i in (1,1,!NODE_MIRROR_COUNT!) do (
+    call set "CUR_NODE_MIRROR=%%NODE_MIRROR_%%i%%"
+    call set "CUR_NODE_NAME=%%NODE_MIRROR_NAME_%%i%%"
+    call :TestMirror "!CUR_NODE_MIRROR!" "!CUR_NODE_NAME!" "node mirror" CUR_NODE_MS CUR_NODE_OK
+    if "!CUR_NODE_OK!"=="1" (
+        set /a NODE_AVAILABLE_COUNT+=1
+        if !CUR_NODE_MS! LSS !BEST_NODE_MS! (
+            set "BEST_NODE_MIRROR=!CUR_NODE_MIRROR!"
+            set "BEST_NODE_NAME=!CUR_NODE_NAME!"
+            set "BEST_NODE_MS=!CUR_NODE_MS!"
+        )
+    )
 )
-call :Warn "Huawei node mirror: timeout"
-call :Warn "All node mirrors failed - using default: Taobao"
+
+if "!NODE_AVAILABLE_COUNT!"=="0" call :Warn "All node mirrors failed - using default: !BEST_NODE_NAME!"
 
 :NodeMirrorDone
-call :Ok "Selected Node mirror: !BEST_NODE_NAME! (!BEST_NODE_MIRROR!)"
+if "!NODE_AVAILABLE_COUNT!"=="0" (
+    call :Ok "Selected Node mirror: !BEST_NODE_NAME! (!BEST_NODE_MIRROR!) [fallback]"
+) else (
+    call :Ok "Selected Node mirror: !BEST_NODE_NAME! (!BEST_NODE_MIRROR!, !BEST_NODE_MS!ms)"
+)
 
 :: ============================================================
 ::  Configure npm registry + prefix
