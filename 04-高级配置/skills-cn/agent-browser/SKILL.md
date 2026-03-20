@@ -15,6 +15,7 @@ Fast browser automation using accessibility tree snapshots with refs for determi
 ## Why CDP-First Approach?
 
 ### Advantages of CDP Connection:
+
 - ✅ **Preserve login state** - Reuse existing cookies and sessions
 - ✅ **Faster** - No browser startup overhead
 - ✅ **Extension support** - Access to browser extensions
@@ -24,12 +25,14 @@ Fast browser automation using accessibility tree snapshots with refs for determi
 ### When to Use Each Approach:
 
 **Use CDP connection (Priority):**
+
 - ✅ User has browser already running
 - ✅ Need to access logged-in sessions
 - ✅ Testing with extensions installed
 - ✅ Quick automation tasks
 
 **Launch new browser (Fallback):**
+
 - ❌ No browser running with CDP
 - ❌ Need isolated clean environment
 - ❌ Testing multi-user scenarios
@@ -50,6 +53,7 @@ tasklist /FI "PID eq <PID>"
 ### 2. Start Browser with CDP Enabled
 
 **Windows (Edge/Chrome):**
+
 ```powershell
 # Stop all instances first
 Stop-Process -Name chrome -Force -ErrorAction SilentlyContinue
@@ -63,6 +67,7 @@ Stop-Process -Name msedge -Force -ErrorAction SilentlyContinue
 ```
 
 **macOS/Linux:**
+
 ```bash
 # macOS Chrome
 /Applications/Google\ Chrome.app/Contents/MacOS/Google\ Chrome --remote-debugging-port=9222 --remote-debugging-address=127.0.0.1 --user-data-dir="$HOME/Library/Application Support/OpenClaw/chrome-debug"
@@ -106,11 +111,13 @@ curl http://127.0.0.1:9222/json/version
 ### URL Handling Heuristic
 
 Use the current tab only when one of these is true:
+
 - Same page needs another action
 - Same site flow is continuing in context
 - Same URL needs refresh / retry / re-snapshot
 
 Open a new tab when one of these is true:
+
 - The task target URL changes to a different website
 - The task starts a new independent page flow
 - The current tab contains user context that should not be interrupted
@@ -165,6 +172,7 @@ Check: Is browser running with CDP?
 ## Key Commands (CDP-Aware)
 
 ### Connection
+
 ```bash
 agent-browser --auto-connect           # Auto-discover CDP browser
 agent-browser --cdp 9222               # Connect to specific port
@@ -172,6 +180,7 @@ agent-browser --cdp http://127.0.0.1:9222  # Full URL
 ```
 
 ### Navigation
+
 ```bash
 # With CDP connection
 agent-browser --auto-connect open https://example.com
@@ -180,6 +189,7 @@ agent-browser --cdp 9222 forward
 ```
 
 ### Recommended Navigation Pattern
+
 ```bash
 # Different URL task: open a new tab first
 agent-browser --auto-connect press "Control+L"
@@ -191,12 +201,14 @@ agent-browser --auto-connect press F5
 ```
 
 ### Snapshot (Always use -i --json)
+
 ```bash
 agent-browser --auto-connect snapshot -i --json
 agent-browser --cdp 9222 snapshot -i -c -d 5 --json
 ```
 
 ### Interactions (Ref-based)
+
 ```bash
 # Click after CDP connection
 agent-browser --auto-connect click @e2
@@ -205,6 +217,7 @@ agent-browser --auto-connect type @e3 "text"
 ```
 
 ### Wait
+
 ```bash
 agent-browser --auto-connect wait --load networkidle
 agent-browser --cdp 9222 wait @e2
@@ -212,6 +225,7 @@ agent-browser --auto-connect wait --text "Loaded"
 ```
 
 ### Get Information
+
 ```bash
 agent-browser --auto-connect get text @e1 --json
 agent-browser --cdp 9222 get title --json
@@ -219,6 +233,7 @@ agent-browser --auto-connect get url --json
 ```
 
 ### Screenshots & PDFs
+
 ```bash
 agent-browser --auto-connect screenshot page.png
 agent-browser --cdp 9222 screenshot --full page.png
@@ -226,6 +241,7 @@ agent-browser --auto-connect pdf page.pdf
 ```
 
 ### State Persistence
+
 ```bash
 # Save state from CDP-connected browser
 agent-browser --auto-connect state save auth.json
@@ -358,14 +374,14 @@ taskkill /PID <PID> /F
 
 ## Comparison: CDP vs New Browser
 
-| Feature | CDP Connection | New Browser |
-|---------|---------------|-------------|
-| Speed | ⚡ Fast (instant) | 🐢 Slow (startup) |
-| Login State | ✅ Preserved | ❌ Fresh |
-| Extensions | ✅ Available | ❌ None |
-| Resources | ✅ Shared | ❌ Duplicate |
-| Isolation | ❌ Shared | ✅ Complete |
-| Reliability | ⚠️ Depends on user | ✅ Guaranteed |
+| Feature     | CDP Connection     | New Browser       |
+| ----------- | ------------------ | ----------------- |
+| Speed       | ⚡ Fast (instant)   | 🐢 Slow (startup) |
+| Login State | ✅ Preserved        | ❌ Fresh           |
+| Extensions  | ✅ Available        | ❌ None            |
+| Resources   | ✅ Shared           | ❌ Duplicate       |
+| Isolation   | ❌ Shared           | ✅ Complete        |
+| Reliability | ⚠️ Depends on user | ✅ Guaranteed      |
 
 ## Advanced: Dynamic Port Detection
 
@@ -422,18 +438,22 @@ agent-browser --auto-connect wait --load networkidle
 When the user asks for browser automation:
 
 1. **First**: Check if browser with CDP is running
+   
    - Test: `curl http://127.0.0.1:9222/json/version`
-   
+
 2. **If available**: Use CDP connection
-   - Command: `agent-browser --auto-connect <command>`
    
+   - Command: `agent-browser --auto-connect <command>`
+
 3. **If unavailable**: Offer options
+   
    - Ask user to start browser with CDP
    - Or launch new browser as fallback
-   
+
 4. **Execute**: Perform automation with CDP flags
 
 Additional tab rule:
+
 - If the target is a different URL or a different site, open a new tab before navigation
 - If the target is the same URL, stay in the current tab and refresh if necessary
 
